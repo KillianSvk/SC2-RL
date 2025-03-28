@@ -1,9 +1,7 @@
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
 import time
 from absl import flags, app
-import multiprocessing as mp
+
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 
@@ -13,6 +11,7 @@ from torch.optim import Adam, RMSprop, AdamW
 from sc2_gym_wrapper import SC2GymEnvironment
 from gpu_logging import GPUTensorBoardCallback
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
 AGENTS_FOLDER = 'agents/'
 

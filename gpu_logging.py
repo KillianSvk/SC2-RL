@@ -1,6 +1,5 @@
 import os
 import time
-import torch
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback
 from torch.utils.tensorboard import SummaryWriter

@@ -63,8 +63,8 @@ class SC2GymEnvironment(gym.Env):
         # observation_space = spaces.Box(low=0, high=4, shape=(self.screen_size, self.screen_size), dtype=np.int32)
 
         observation_space = spaces.Dict({
-            "position": spaces.Box(low=0, high=1, shape=(self.screen_size, self.screen_size), dtype=np.int32),
-            "minerals": spaces.Box(low=0, high=1, shape=(self.screen_size, self.screen_size), dtype=np.int32),
+            "position": spaces.Box(low=0, high=1, shape=(self.screen_size, self.screen_size), dtype=np.uint8),
+            "minerals": spaces.Box(low=0, high=1, shape=(self.screen_size, self.screen_size), dtype=np.uint8),
         })
 
         return observation_space
@@ -75,8 +75,8 @@ class SC2GymEnvironment(gym.Env):
         return list(zip(x, y))
 
     def get_gym_observation(self):
-        minerals_screen = np.array([[0 for x in range(self.screen_size)] for y in range(self.screen_size)])
-        position_screen = np.array([[0 for x in range(self.screen_size)] for y in range(self.screen_size)])
+        minerals_screen = np.array([[0 for x in range(self.screen_size)] for y in range(self.screen_size)], dtype=np.uint8)
+        position_screen = np.array([[0 for x in range(self.screen_size)] for y in range(self.screen_size)], dtype=np.uint8)
         screen = self.obs.observation.feature_screen.player_relative
 
         for y in range(self.screen_size):
