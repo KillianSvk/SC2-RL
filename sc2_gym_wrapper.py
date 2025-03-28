@@ -18,7 +18,7 @@ _NEUTRAL = 3
 class SC2GymEnvironment(gym.Env):
     """ Wraps PySC2's SC2Env to make it Gym-compatible. """
 
-    def __init__(self, realtime=False):
+    def __init__(self):
         super(SC2GymEnvironment, self).__init__()
 
         self.reward = 0
@@ -28,7 +28,9 @@ class SC2GymEnvironment(gym.Env):
         self.screen_size = 32
         self.minimap_size = 32
 
-        self.selected_marine_pos = None
+        self.selected_marine = None
+        self.GRID_SIZE = 7
+        self.GRID_HALF_SIZE = self.GRID_SIZE // 2
 
         self.sc2_env = SC2Env(
             map_name="CollectMineralShards",
@@ -36,11 +38,11 @@ class SC2GymEnvironment(gym.Env):
             agent_interface_format=features.AgentInterfaceFormat(
                 feature_dimensions=features.Dimensions(screen=self.screen_size, minimap=self.minimap_size),
                 use_feature_units=True,
-                use_raw_units=True
+                crop_to_playable_area=True
             ),
             game_steps_per_episode=0,
             step_mul=8,
-            realtime=realtime,
+            realtime=False,
             visualize=False
         )
 
@@ -52,7 +54,7 @@ class SC2GymEnvironment(gym.Env):
     def _define_action_space(self):
         """Defines the Gym-compatible action space for PySC2."""
 
-        actions_num = (self.screen_size * self.screen_size)
+        actions_num = (self.GRID_SIZE * self.GRID_SIZE)
 
         # actions_num = (len(self.obs.observation.available_actions))  # Number of possible actions in PySC2
 
@@ -62,10 +64,7 @@ class SC2GymEnvironment(gym.Env):
         """Defines the Gym-compatible observation space."""
         # observation_space = spaces.Box(low=0, high=4, shape=(self.screen_size, self.screen_size), dtype=np.int32)
 
-        observation_space = spaces.Dict({
-            "position": spaces.Box(low=0, high=1, shape=(self.screen_size, self.screen_size), dtype=np.uint8),
-            "minerals": spaces.Box(low=0, high=1, shape=(self.screen_size, self.screen_size), dtype=np.uint8),
-        })
+        observation_space = spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE, self.GRID_SIZE), dtype=np.int8)
 
         return observation_space
 
@@ -74,25 +73,66 @@ class SC2GymEnvironment(gym.Env):
         y, x = mask.nonzero()
         return list(zip(x, y))
 
+    def is_in_local_grid(self, x, y) -> bool:
+        assert self.selected_marine is not None, "No marine selected yet, therefor no local grid"
+        selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+
+        if x < selected_marine_x - self.GRID_HALF_SIZE or x > selected_marine_x + self.GRID_HALF_SIZE:
+            return False
+
+        if y < selected_marine_y - self.GRID_HALF_SIZE or y > selected_marine_y + self.GRID_HALF_SIZE:
+            return False
+
+        return True
+
+    def is_in_bounds(self, x, y) -> bool:
+        if x < 0 or x >= self.screen_size:
+            return False
+
+        if y < 0 or y >= self.screen_size:
+            return False
+
+        return True
+
+    def global_to_local_pos(self, x, y) -> tuple[int, int]:
+        assert self.selected_marine is not None, "No marine selected yet, therefor no local grid"
+
+        selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+        local_x = x - (selected_marine_x - self.GRID_HALF_SIZE)
+        local_y = y - (selected_marine_y - self.GRID_HALF_SIZE)
+
+        return local_x, local_y
+
     def get_gym_observation(self):
-        minerals_screen = np.array([[0 for x in range(self.screen_size)] for y in range(self.screen_size)], dtype=np.uint8)
-        position_screen = np.array([[0 for x in range(self.screen_size)] for y in range(self.screen_size)], dtype=np.uint8)
         screen = self.obs.observation.feature_screen.player_relative
+        local_grid = np.zeros((self.GRID_SIZE, self.GRID_SIZE), dtype=np.int8)
+        selected_units = [unit for unit in self.obs.observation.feature_units if unit.is_selected]
 
-        for y in range(self.screen_size):
-            for x in range(self.screen_size):
-                if screen[y][x] == _NEUTRAL:
-                    minerals_screen[y][x] = 1
+        if len(selected_units) > 0:
+            self.selected_marine = selected_units[0]
 
-        if self.selected_marine_pos is not None:
-            selected_marine_x, selected_marine_y = self.selected_marine_pos
-            position_screen[selected_marine_y // self.screen_size][selected_marine_x // self.screen_size] = 1
+        if self.selected_marine is not None:
+            selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
 
-        observation_space = dict()
-        observation_space["minerals"] = minerals_screen
-        observation_space["position"] = position_screen
+            # assign out of bounds to local grid
+            for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE):
+                for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE):
+                    global_x, global_y = selected_marine_x + local_x, selected_marine_y + local_y
+                    if not self.is_in_bounds(global_x, global_y):
+                        local_grid[local_y + self.GRID_HALF_SIZE, local_x + self.GRID_HALF_SIZE] = -1
 
-        return observation_space
+            # assign minerals to local grid
+            for y in range(self.screen_size):
+                for x in range(self.screen_size):
+                    if screen[y][x] == _NEUTRAL and self.is_in_local_grid(x, y):
+                        local_x, local_y = self.global_to_local_pos(x, y)
+                        local_grid[local_y, local_x] = 1
+
+        # print("-------------------------")
+        # for line in local_grid.tolist():
+        #     print(line)
+
+        return local_grid
 
     def reset(self, seed=None, options=None):
         self.episodes += 1
@@ -103,36 +143,35 @@ class SC2GymEnvironment(gym.Env):
 
         return gym_observation, info
 
+    def local_to_global_action(self, action) -> tuple[int, int]:
+        if self.selected_marine is None:
+            return 0, 0
+
+        selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+        local_x, local_y = action % self.GRID_SIZE, action // self.GRID_SIZE
+        local_x, local_y = local_x - self.GRID_HALF_SIZE, local_y - self.GRID_HALF_SIZE
+        global_x, global_y = local_x + selected_marine_x, local_y + selected_marine_y
+
+        return global_x, global_y
+
     def step(self, action):
         """Executes the given action in the SC2 environment and returns the new state, reward, and episode status."""
-
-        # function_id = int(action)  # Convert Gym action to PySC2 function ID
-        # available_actions = self.sc2_env.observation_spec()[0]['available_actions']
-        #
-        # if function_id not in available_actions:
-        #     # print(f"Action id: {function_id} is not available.")
-        #     function_id = actions.FUNCTIONS.no_op.id  # Default to no-op
-        #
-        # # Example of a simple action with no parameters
-        # action_call = actions.FunctionCall(function_id, [])
-        #
-        # # Apply the action and advance the environment
-        # time_step = self.sc2_env.step([action_call])
-
-        x = action % self.screen_size
-        y = action // self.screen_size
+        x, y = self.local_to_global_action(action)
 
         player_relative = self.obs.observation.feature_screen.player_relative
         available_actions = self.obs.observation.available_actions
 
         if FUNCTIONS.Move_screen.id in available_actions:
-            sc2_action = [FUNCTIONS.Move_screen("now", (x, y))]
+            if self.is_in_bounds(x, y):
+                sc2_action = [FUNCTIONS.Move_screen("now", (x, y))]
+
+            else:
+                sc2_action = [FUNCTIONS.no_op()]
 
         else:
             # sc2_action = [FUNCTIONS.select_army("select")]
             marines_pos = self._xy_locs(player_relative == _PLAYER)
             marine_pos = marines_pos[0]
-            self.selected_marine_pos = marine_pos
             sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
 
         time_step = self.sc2_env.step(sc2_action)

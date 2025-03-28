@@ -60,19 +60,19 @@ def run_from_cmd(argv):
 
 def make_env():
     time.sleep(1)
-    return SC2GymEnvironment(realtime=False)
+    return SC2GymEnvironment()
 
 
 def train(rl_algorithm, model_path):
-    # env = SC2GymEnvironment()
     env = None
     num_envs = 5
 
     try:
+        # env = SC2GymEnvironment()
         env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
 
         model = rl_algorithm(
-            policy="MultiInputPolicy",
+            policy="MlpPolicy",
             env=env,
             verbose=1,
             gradient_steps=8,
@@ -84,7 +84,7 @@ def train(rl_algorithm, model_path):
         )
 
         model.learn(
-            total_timesteps=50_000,
+            total_timesteps=100_000,
             callback=GPUTensorBoardCallback(),
             progress_bar=True
         )
@@ -97,9 +97,7 @@ def train(rl_algorithm, model_path):
 
 
 def test(rl_algorithm, model_path):
-    env = SC2GymEnvironment(
-        realtime=False
-    )
+    env = SC2GymEnvironment()
 
     try:
         model = rl_algorithm.load(
@@ -156,8 +154,8 @@ def main(argv):
     rl_algorithm = DQN
     model_path = 'dqn'
 
-    # train(rl_algorithm, model_path)
-    test(rl_algorithm, model_path)
+    train(rl_algorithm, model_path)
+    # test(rl_algorithm, model_path)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
