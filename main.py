@@ -1,6 +1,7 @@
 import os
 import time
 from absl import flags, app
+import psutil
 
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -15,8 +16,6 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
 AGENTS_FOLDER = 'agents/'
 ENV = SC2GymEnvironment
-model_name = "model_name"
-
 
 def run_from_cmd(argv):
     rl_algorithm = None
@@ -62,21 +61,16 @@ def make_env():
     return ENV()
 
 
-def set_env_name():
-    global model_name
-    env = ENV()
-    model_name = str(env)
-    del env
-
-
 def train(rl_algorithm):
     env = None
     num_envs = 6
-    set_env_name()
 
     try:
         # env = make_env()
         env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
+
+        env_names = env.get_attr("name")
+        model_name = env_names[0]
 
         model = rl_algorithm(
             policy="MlpPolicy",
@@ -90,22 +84,34 @@ def train(rl_algorithm):
             device="cuda"
         )
 
-        model.learn(
-            total_timesteps=250_000,
-            callback=MultiprocessTensorBoardCallback(model_name),
-            progress_bar=True
-        )
+        TIMESTEPS = 50_000
+        for i in range(4):
+            model.learn(
+                total_timesteps=TIMESTEPS,
+                callback=MultiprocessTensorBoardCallback(model_name),
+                progress_bar=True,
+                reset_num_timesteps=False
+            )
 
-        model.save(AGENTS_FOLDER + model_name)
+            model.save(AGENTS_FOLDER + model_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k" + "_" + time.strftime("%H-%M-%S"))
 
     finally:
         if env is not None:
             env.close()
 
+        parent = psutil.Process(os.getpid())
+        for child in parent.children(recursive=True):
+            child.terminate()  # Gracefully terminate
+        gone, alive = psutil.wait_procs(parent.children(), timeout=3)  # Wait for cleanup
+
+        # If any processes are still alive, force kill them
+        for child in alive:
+            child.kill()
+
 
 def test(rl_algorithm):
     env = make_env()
-    set_env_name()
+    model_name = env.name
 
     try:
         model = rl_algorithm.load(
