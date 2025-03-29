@@ -8,12 +8,14 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 import torch
 from torch.optim import Adam, RMSprop, AdamW
 
-from sc2_gym_wrapper import SC2GymEnvironment
-from gpu_logging import GPUTensorBoardCallback
+from sc2_gym_wrapper import SC2GymEnvironment, SC2BoxEnv
+from gpu_logging import MultiprocessTensorBoardCallback
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
 AGENTS_FOLDER = 'agents/'
+ENV = SC2GymEnvironment
+model_name = "model_name"
 
 
 def run_from_cmd(argv):
@@ -29,13 +31,11 @@ def run_from_cmd(argv):
         print("Wrong or None algorithm was chosen!")
         return
 
-    model_path = argv[1]
-
     if argv[2] == 'train':
-        train(rl_algorithm, model_path)
+        train(rl_algorithm)
 
     elif argv[2] == 'test':
-        test(rl_algorithm, model_path)
+        test(rl_algorithm)
 
 
 # Adam    learning_rate=1e-4
@@ -59,16 +59,23 @@ def run_from_cmd(argv):
 #    )
 
 def make_env():
-    time.sleep(1)
-    return SC2GymEnvironment()
+    return ENV()
 
 
-def train(rl_algorithm, model_path):
+def set_env_name():
+    global model_name
+    env = ENV()
+    model_name = str(env)
+    del env
+
+
+def train(rl_algorithm):
     env = None
-    num_envs = 5
+    num_envs = 6
+    set_env_name()
 
     try:
-        # env = SC2GymEnvironment()
+        # env = make_env()
         env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
 
         model = rl_algorithm(
@@ -84,24 +91,25 @@ def train(rl_algorithm, model_path):
         )
 
         model.learn(
-            total_timesteps=100_000,
-            callback=GPUTensorBoardCallback(),
+            total_timesteps=250_000,
+            callback=MultiprocessTensorBoardCallback(model_name),
             progress_bar=True
         )
 
-        model.save(AGENTS_FOLDER + model_path)
+        model.save(AGENTS_FOLDER + model_name)
 
     finally:
         if env is not None:
             env.close()
 
 
-def test(rl_algorithm, model_path):
-    env = SC2GymEnvironment()
+def test(rl_algorithm):
+    env = make_env()
+    set_env_name()
 
     try:
         model = rl_algorithm.load(
-            path=AGENTS_FOLDER + model_path,
+            path=AGENTS_FOLDER + model_name,
             env=env,
             device="cuda"
         )
@@ -152,13 +160,12 @@ def main(argv):
 
     # IF NOT CMD
     rl_algorithm = DQN
-    model_path = 'dqn'
 
-    train(rl_algorithm, model_path)
-    # test(rl_algorithm, model_path)
+    train(rl_algorithm)
+    # test(rl_algorithm)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
-# tensorboard --logdir=tensor_log
+# tensorboard --logdir=tensorboard
 if __name__ == "__main__":
     app.run(main)

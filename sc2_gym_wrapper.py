@@ -3,8 +3,10 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
+from stable_baselines3.common.env_checker import check_env
+
 from pysc2.env import sc2_env
-from pysc2.lib import actions, features, units
+from pysc2.lib import actions, features, units, portspicker
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent
 
 FLAGS = flags.FLAGS
@@ -21,7 +23,7 @@ class SC2GymEnvironment(gym.Env):
     def __init__(self):
         super(SC2GymEnvironment, self).__init__()
 
-        self.reward = 0
+        self.name = "local_grid_env"
         self.episodes = 0
         self.steps = 0
 
@@ -29,7 +31,7 @@ class SC2GymEnvironment(gym.Env):
         self.minimap_size = 32
 
         self.selected_marine = None
-        self.GRID_SIZE = 7
+        self.GRID_SIZE = 11
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
 
         self.sc2_env = SC2Env(
@@ -48,27 +50,30 @@ class SC2GymEnvironment(gym.Env):
 
         self.obs = self.sc2_env.reset()[0]
 
-        self.action_space = self._define_action_space()
-        self.observation_space = self._define_observation_space()
+        self.define_action_space()
+        self.define_observation_space()
 
-    def _define_action_space(self):
+    def __str__(self):
+        return f"{self.name}_{self.GRID_SIZE}x{self.GRID_SIZE}"
+
+    def define_action_space(self):
         """Defines the Gym-compatible action space for PySC2."""
 
         actions_num = (self.GRID_SIZE * self.GRID_SIZE)
 
         # actions_num = (len(self.obs.observation.available_actions))  # Number of possible actions in PySC2
 
-        return spaces.Discrete(actions_num)
+        self.action_space = spaces.Discrete(actions_num)
 
-    def _define_observation_space(self):
+    def define_observation_space(self):
         """Defines the Gym-compatible observation space."""
         # observation_space = spaces.Box(low=0, high=4, shape=(self.screen_size, self.screen_size), dtype=np.int32)
 
         observation_space = spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE, self.GRID_SIZE), dtype=np.int8)
 
-        return observation_space
+        self.observation_space = observation_space
 
-    def _xy_locs(self, mask):
+    def xy_locations(self, mask):
         """Mask should be a set of bools from comparison with a feature layer."""
         y, x = mask.nonzero()
         return list(zip(x, y))
@@ -115,33 +120,24 @@ class SC2GymEnvironment(gym.Env):
             selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
 
             # assign out of bounds to local grid
-            for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE):
-                for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE):
+            for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+                for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
                     global_x, global_y = selected_marine_x + local_x, selected_marine_y + local_y
                     if not self.is_in_bounds(global_x, global_y):
                         local_grid[local_y + self.GRID_HALF_SIZE, local_x + self.GRID_HALF_SIZE] = -1
 
             # assign minerals to local grid
-            for y in range(self.screen_size):
-                for x in range(self.screen_size):
-                    if screen[y][x] == _NEUTRAL and self.is_in_local_grid(x, y):
-                        local_x, local_y = self.global_to_local_pos(x, y)
-                        local_grid[local_y, local_x] = 1
+            minerals = self.xy_locations(screen == _NEUTRAL)
+            for x, y in minerals:
+                if self.is_in_local_grid(x, y):
+                    local_x, local_y = self.global_to_local_pos(x, y)
+                    local_grid[local_y, local_x] = 1
 
         # print("-------------------------")
         # for line in local_grid.tolist():
         #     print(line)
 
         return local_grid
-
-    def reset(self, seed=None, options=None):
-        self.episodes += 1
-
-        self.obs = self.sc2_env.reset()[0]
-        gym_observation = self.get_gym_observation()
-        info = {}
-
-        return gym_observation, info
 
     def local_to_global_action(self, action) -> tuple[int, int]:
         if self.selected_marine is None:
@@ -153,6 +149,13 @@ class SC2GymEnvironment(gym.Env):
         global_x, global_y = local_x + selected_marine_x, local_y + selected_marine_y
 
         return global_x, global_y
+
+    def reward_func(self) -> int:
+        score = self.obs.observation['score_cumulative']['score']
+        reward = self.obs.reward
+        reward -= 0.01
+
+        return reward
 
     def step(self, action):
         """Executes the given action in the SC2 environment and returns the new state, reward, and episode status."""
@@ -170,7 +173,7 @@ class SC2GymEnvironment(gym.Env):
 
         else:
             # sc2_action = [FUNCTIONS.select_army("select")]
-            marines_pos = self._xy_locs(player_relative == _PLAYER)
+            marines_pos = self.xy_locations(player_relative == _PLAYER)
             marine_pos = marines_pos[0]
             sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
 
@@ -178,14 +181,9 @@ class SC2GymEnvironment(gym.Env):
 
         # Unpack the returned values
         self.obs = time_step[0]
-        score = self.obs.observation['score_cumulative']['score']
-        reward = self.obs.reward
+        reward = self.reward_func()
         done = self.obs.last()
 
-        if done and score == 20:
-            reward += 100
-
-        self.reward += reward
         self.steps += 1
 
         # Truncated flag (e.g., if the episode ended due to time constraints)
@@ -196,11 +194,63 @@ class SC2GymEnvironment(gym.Env):
 
         return self.get_gym_observation(), reward, done, truncated, info
 
+    def reset(self, seed=None, options=None):
+        self.episodes += 1
+
+        self.obs = self.sc2_env.reset()[0]
+        gym_observation = self.get_gym_observation()
+        info = {}
+
+        return gym_observation, info
+
     def render(self, mode="human"):
         """ Optional: Implement visualization. """
         pass
 
     def close(self):
         """ Close the SC2 environment. """
-        self.sc2_env.reset()
         self.sc2_env.close()
+
+
+class SC2BoxEnv(SC2GymEnvironment):
+    def __init__(self):
+        super(SC2BoxEnv, self).__init__()
+
+        self.name = "box_obs_env"
+        self.GRID_SIZE = 5
+        self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+        self.define_action_space()
+
+    def define_action_space(self):
+        self.action_space = spaces.Discrete(self.GRID_SIZE * self.GRID_SIZE)
+
+    def define_observation_space(self):
+        self.observation_space = spaces.Box(low=0, high=self.screen_size, shape=(1+20, 2), dtype=np.uint8)
+
+    def get_gym_observation(self):
+        gym_obs = np.zeros((21, 2), dtype=np.uint8)
+        screen = self.obs.observation.feature_screen.player_relative
+        selected_units = [unit for unit in self.obs.observation.feature_units if unit.is_selected]
+
+        if len(selected_units) > 0:
+            self.selected_marine = selected_units[0]
+
+        if self.selected_marine is not None:
+            selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+            gym_obs[0][0], gym_obs[0][1] = selected_marine_x, selected_marine_y
+
+        minerals = self.xy_locations(screen == _NEUTRAL)
+        for i, mineral in enumerate(minerals, 1):
+            gym_obs[i][0], gym_obs[i][1] = mineral
+
+        # for line in gym_obs.tolist():
+        #     print(line)
+        # print()
+
+        return gym_obs
+
+
+if __name__ == "__main__":
+    env = SC2BoxEnv()
+    check_env(env)
+    env.close()
