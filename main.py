@@ -9,13 +9,13 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 import torch
 from torch.optim import Adam, RMSprop, AdamW
 
-from sc2_gym_wrapper import SC2GymEnvironment, SC2BoxEnv
-from gpu_logging import MultiprocessTensorBoardCallback
+from sc2_gym_wrapper import *
+from agent_logging import MultiprocessTensorBoardCallback
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
-AGENTS_FOLDER = 'agents/'
-ENV = SC2GymEnvironment
+AGENTS_FOLDER = 'agents'
+ENV = SC2FlattenEnv
 
 def run_from_cmd(argv):
     rl_algorithm = None
@@ -84,16 +84,17 @@ def train(rl_algorithm):
             device="cuda"
         )
 
-        TIMESTEPS = 50_000
-        for i in range(4):
+        TIMESTEPS = 250_000
+        for i in range(4 * 3):
             model.learn(
                 total_timesteps=TIMESTEPS,
-                callback=MultiprocessTensorBoardCallback(model_name),
+                callback=MultiprocessTensorBoardCallback(),
                 progress_bar=True,
                 reset_num_timesteps=False
-            )
+                )
 
-            model.save(AGENTS_FOLDER + model_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k" + "_" + time.strftime("%H-%M-%S"))
+            model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
+        # model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{TIMESTEPS//1_000}k")
 
     finally:
         if env is not None:
@@ -109,13 +110,25 @@ def train(rl_algorithm):
             child.kill()
 
 
+def get_latest_model_path():
+    existing_runs = sorted(
+        os.listdir(AGENTS_FOLDER),
+        key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
+        reverse=True
+    )
+    last_run = existing_runs[0]
+    last_run = last_run.split(".")[0]
+    return os.path.join(AGENTS_FOLDER, last_run)
+
+
 def test(rl_algorithm):
     env = make_env()
-    model_name = env.name
+    # model_path = get_latest_model_path()
+    model_path = os.path.join(AGENTS_FOLDER, "dqn_15x15_500k")
 
     try:
         model = rl_algorithm.load(
-            path=AGENTS_FOLDER + model_name,
+            path=model_path,
             env=env,
             device="cuda"
         )
@@ -167,8 +180,8 @@ def main(argv):
     # IF NOT CMD
     rl_algorithm = DQN
 
-    train(rl_algorithm)
-    # test(rl_algorithm)
+    # train(rl_algorithm)
+    test(rl_algorithm)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/

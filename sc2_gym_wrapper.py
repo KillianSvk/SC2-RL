@@ -23,7 +23,6 @@ class SC2GymEnvironment(gym.Env):
     def __init__(self):
         super(SC2GymEnvironment, self).__init__()
 
-        self.name = "local_grid_env"
         self.episodes = 0
         self.steps = 0
 
@@ -33,6 +32,8 @@ class SC2GymEnvironment(gym.Env):
         self.selected_marine = None
         self.GRID_SIZE = 11
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+
+        self.name = f"dqn_local_grid_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
         self.sc2_env = SC2Env(
             map_name="CollectMineralShards",
@@ -67,9 +68,9 @@ class SC2GymEnvironment(gym.Env):
 
     def define_observation_space(self):
         """Defines the Gym-compatible observation space."""
-        # observation_space = spaces.Box(low=0, high=4, shape=(self.screen_size, self.screen_size), dtype=np.int32)
 
         observation_space = spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE, self.GRID_SIZE), dtype=np.int8)
+        # observation_space = spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE * self.GRID_SIZE, ), dtype=np.int8)
 
         self.observation_space = observation_space
 
@@ -137,6 +138,8 @@ class SC2GymEnvironment(gym.Env):
         # for line in local_grid.tolist():
         #     print(line)
 
+        # local_grid = local_grid.flatten().astype(np.int8)
+
         return local_grid
 
     def local_to_global_action(self, action) -> tuple[int, int]:
@@ -191,8 +194,9 @@ class SC2GymEnvironment(gym.Env):
 
         # Info dictionary (optional debug info)
         info = {}
+        obs = self.get_gym_observation()
 
-        return self.get_gym_observation(), reward, done, truncated, info
+        return obs, reward, done, truncated, info
 
     def reset(self, seed=None, options=None):
         self.episodes += 1
@@ -212,6 +216,30 @@ class SC2GymEnvironment(gym.Env):
         self.sc2_env.close()
 
 
+class SC2FlattenEnv(SC2GymEnvironment):
+    def __init__(self):
+        super(SC2FlattenEnv, self).__init__()
+
+        self.name = "dqn_flatten_obs_env"
+        self.GRID_SIZE = 11
+        self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+
+        self.define_action_space()
+        self.define_observation_space()
+
+    def define_action_space(self):
+        self.action_space = spaces.Discrete(self.GRID_SIZE * self.GRID_SIZE)
+
+    def define_observation_space(self):
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE * self.GRID_SIZE, ), dtype=np.int8)
+
+    def get_gym_observation(self):
+        gym_obs = super(SC2FlattenEnv, self).get_gym_observation()
+        flatten_gym_obs = gym_obs.flatten()
+
+        return flatten_gym_obs
+
+
 class SC2BoxEnv(SC2GymEnvironment):
     def __init__(self):
         super(SC2BoxEnv, self).__init__()
@@ -219,13 +247,15 @@ class SC2BoxEnv(SC2GymEnvironment):
         self.name = "box_obs_env"
         self.GRID_SIZE = 5
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+
         self.define_action_space()
+        self.define_observation_space()
 
     def define_action_space(self):
         self.action_space = spaces.Discrete(self.GRID_SIZE * self.GRID_SIZE)
 
     def define_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=self.screen_size, shape=(1+20, 2), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=0, high=self.screen_size, shape=(20+1, 2), dtype=np.uint8)
 
     def get_gym_observation(self):
         gym_obs = np.zeros((21, 2), dtype=np.uint8)
@@ -251,6 +281,12 @@ class SC2BoxEnv(SC2GymEnvironment):
 
 
 if __name__ == "__main__":
-    env = SC2BoxEnv()
-    check_env(env)
-    env.close()
+    env = None
+
+    try:
+        env = SC2FlattenEnv()
+        check_env(env)
+
+    finally:
+        if env is not None:
+            env.close()
