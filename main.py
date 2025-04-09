@@ -1,6 +1,7 @@
 import os
 import time
 from absl import flags, app
+import psutil
 
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -8,13 +9,13 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 import torch
 from torch.optim import Adam, RMSprop, AdamW
 
-from sc2_gym_wrapper import SC2GymEnvironment
-from gpu_logging import GPUTensorBoardCallback
+from sc2_gym_wrapper import *
+from agent_logging import MultiprocessTensorBoardCallback
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
-AGENTS_FOLDER = 'agents/'
-
+AGENTS_FOLDER = 'agents'
+ENV = SC2FlattenEnv
 
 def run_from_cmd(argv):
     rl_algorithm = None
@@ -29,13 +30,11 @@ def run_from_cmd(argv):
         print("Wrong or None algorithm was chosen!")
         return
 
-    model_path = argv[1]
-
     if argv[2] == 'train':
-        train(rl_algorithm, model_path)
+        train(rl_algorithm)
 
     elif argv[2] == 'test':
-        test(rl_algorithm, model_path)
+        test(rl_algorithm)
 
 
 # Adam    learning_rate=1e-4
@@ -59,17 +58,19 @@ def run_from_cmd(argv):
 #    )
 
 def make_env():
-    time.sleep(1)
-    return SC2GymEnvironment()
+    return ENV()
 
 
-def train(rl_algorithm, model_path):
+def train(rl_algorithm):
     env = None
-    num_envs = 5
+    num_envs = 6
 
     try:
-        # env = SC2GymEnvironment()
+        # env = make_env()
         env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
+
+        env_names = env.get_attr("name")
+        model_name = env_names[0]
 
         model = rl_algorithm(
             policy="MlpPolicy",
@@ -83,25 +84,51 @@ def train(rl_algorithm, model_path):
             device="cuda"
         )
 
-        model.learn(
-            total_timesteps=100_000,
-            callback=GPUTensorBoardCallback(),
-            progress_bar=True
-        )
+        TIMESTEPS = 250_000
+        for i in range(4 * 3):
+            model.learn(
+                total_timesteps=TIMESTEPS,
+                callback=MultiprocessTensorBoardCallback(),
+                progress_bar=True,
+                reset_num_timesteps=False
+                )
 
-        model.save(AGENTS_FOLDER + model_path)
+            model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
+        # model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{TIMESTEPS//1_000}k")
 
     finally:
         if env is not None:
             env.close()
 
+        parent = psutil.Process(os.getpid())
+        for child in parent.children(recursive=True):
+            child.terminate()  # Gracefully terminate
+        gone, alive = psutil.wait_procs(parent.children(), timeout=3)  # Wait for cleanup
 
-def test(rl_algorithm, model_path):
-    env = SC2GymEnvironment()
+        # If any processes are still alive, force kill them
+        for child in alive:
+            child.kill()
+
+
+def get_latest_model_path():
+    existing_runs = sorted(
+        os.listdir(AGENTS_FOLDER),
+        key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
+        reverse=True
+    )
+    last_run = existing_runs[0]
+    last_run = last_run.split(".")[0]
+    return os.path.join(AGENTS_FOLDER, last_run)
+
+
+def test(rl_algorithm):
+    env = make_env()
+    # model_path = get_latest_model_path()
+    model_path = os.path.join(AGENTS_FOLDER, "dqn_15x15_500k")
 
     try:
         model = rl_algorithm.load(
-            path=AGENTS_FOLDER + model_path,
+            path=model_path,
             env=env,
             device="cuda"
         )
@@ -152,13 +179,12 @@ def main(argv):
 
     # IF NOT CMD
     rl_algorithm = DQN
-    model_path = 'dqn'
 
-    train(rl_algorithm, model_path)
-    # test(rl_algorithm, model_path)
+    # train(rl_algorithm)
+    test(rl_algorithm)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
-# tensorboard --logdir=tensor_log
+# tensorboard --logdir=tensorboard
 if __name__ == "__main__":
     app.run(main)
