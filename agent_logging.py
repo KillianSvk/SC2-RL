@@ -8,39 +8,17 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class MultiprocessTensorBoardCallback(BaseCallback):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, verbose: int = 0):
+        super().__init__(verbose)
 
-        self.episode_rewards = []  # Store rewards for each episode
-        self.current_episode_reward = 0  # Track accumulated reward in current episode
         self.start_timesteps = self.num_timesteps
-
-        self.writer = None
-        self.base_log_dir = "tensorboard"
-
     def on_training_start(self, locals_: dict[str, Any], globals_: dict[str, Any]) -> None:
         super().on_training_start(locals_, globals_)
 
-        if self.num_timesteps > 0:
-            existing_runs = sorted(
-                os.listdir(self.base_log_dir),
-                key=lambda x: os.path.getctime(os.path.join(self.base_log_dir, x)),
-                reverse=True
-            )
-            last_run = existing_runs[0]
-            log_dir = os.path.join(self.base_log_dir, last_run)
+    def on_rollout_start(self) -> None:
+        super().on_rollout_start()
 
-        else:
-            # Create a new log directory for each run
-            env_names = self.model.env.get_attr("name")
-            model_name = env_names[0]
-            run_name = model_name + "_" + time.strftime("%H-%M-%S")
-            log_dir = os.path.join(self.base_log_dir, run_name)
-
-        os.makedirs(log_dir, exist_ok=True)
-        self.writer = SummaryWriter(log_dir=log_dir)
-
-    def _on_step(self) -> bool:
+    def log_fps(self):
         elapsed_time = time.time() - self.locals["self"].start_time
         if elapsed_time > 0:
             # Compute FPS (environment steps per second)
@@ -51,43 +29,105 @@ class MultiprocessTensorBoardCallback(BaseCallback):
             iterations_per_sec = self.locals["num_collected_steps"] / elapsed_time
 
             # Log values
-            self.writer.add_scalar("train/FPS", fps)
-            self.writer.add_scalar("train/iterations_per_sec", iterations_per_sec)
+            self.logger.record("train/FPS", fps)
+            self.logger.record("train/iterations_per_sec", iterations_per_sec)
 
-        # Track accumulated reward for the current episode
+    def log_episode_reward_mean(self):
+        rewards = self.locals["rewards"]
+        dones = self.locals["dones"]
+
+        current_episode_reward = sum(self.locals["rewards"]) / self.locals["self"].n_envs
+        self.logger.record_mean("rollout/episode_reward_mean", current_episode_reward)
+
+    def on_step(self) -> bool:
+        super()._on_step()
+
+        # self.num_timesteps
+        #
+        # self.locals["self"].exploration_rate
+        # self.locals["self"].learning_rate
+        # self.locals["self"].num_timesteps
+        #
+        # self.locals["rewards"]
+        # self.locals["dones"]
+        # self.locals['tb_log_name'] #DQN
+        # self.locals['reset_num_timesteps']
+        # self.locals["num_collected_steps"]
+        # self.locals["num_collected_episodes"]
+
+        self.log_fps()
+
         if "rewards" in self.locals:
-            self.current_episode_reward += sum(self.locals["rewards"]) / self.locals["self"].n_envs
+            self.log_episode_reward_mean()
 
-        # Check if the episode is done
-        if "dones" in self.locals and any(self.locals["dones"]):
-            self.episode_rewards.append(self.current_episode_reward)
-
-            # Reset episode reward for the next episode
-            self.current_episode_reward = 0
-
-        if self.episode_rewards:
-            episode_reward_mean = (self.current_episode_reward + sum(self.episode_rewards)) / (len(self.episode_rewards) + 1)
-            self.writer.add_scalar("rollout/ep_reward_mean", episode_reward_mean, self.num_timesteps)
-
-        # Log exploration rate if available
         if hasattr(self.model, "exploration_rate"):
-            self.writer.add_scalar("rollout/exploration_rate", self.model.exploration_rate, self.num_timesteps)
+            self.logger.record_mean("rollout/exploration_rate", self.model.exploration_rate)
 
-        # Log key training metrics
+        # Log training loss if present
         if "loss" in self.locals:
-            loss = self.locals["loss"].item()  # Extract loss value
-            self.writer.add_scalar("train/loss", loss, self.num_timesteps)
+            loss = self.locals["loss"]
+            if hasattr(loss, "item"):
+                loss = loss.item()
+            self.logger.record_mean("train/loss", loss)
 
-        # Log Q-values
-        # if hasattr(self.model, "q_net"):
-        #     q_values = self.model.q_net(self.model.policy.q_net_input)
-        #     mean_q_value = torch.mean(q_values).item()
-        #     self.writer.add_scalar("train/q_values", mean_q_value, self.num_timesteps)
-
+        # Optionally log learning rate
         if hasattr(self.model, "learning_rate"):
-            self.writer.add_scalar("train/learning_rate", self.model.learning_rate, self.num_timesteps)
+            lr = self.model.learning_rate
+            if callable(lr):
+                lr = lr(self.num_timesteps)
+            self.logger.record_mean("train/learning_rate", lr)
+
+        self.logger.log()
+        # self.logger.dump(self.num_timesteps)
+
+        return True
+
+    def on_rollout_end(self) -> None:
+        super().on_rollout_end()
+
+    def on_training_end(self) -> None:
+        super().on_training_end()
+
+
+class CustomMetricsCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+        self.episode_rewards = []
+        self.current_rewards = None
+        self.start_time = None
+        self.total_elapsed_time = 0.0  # Total across multiple learn() calls
+
+    def _on_training_start(self) -> None:
+        self.current_rewards = [0.0 for _ in range(self.model.get_env().num_envs)]
+        self.start_time = time.time()
+
+    def record_episode_reward_mean(self):
+        rewards = self.locals.get("rewards")
+        dones = self.locals.get("dones")
+
+        if rewards is not None and dones is not None:
+            for i, (r, done) in enumerate(zip(rewards, dones)):
+                self.current_rewards[i] += r
+                if done:
+                    self.episode_rewards.append(self.current_rewards[i])
+                    self.current_rewards[i] = 0
+
+            if self.episode_rewards:
+                avg_rew = sum(self.episode_rewards[-100:]) / min(len(self.episode_rewards), 100)
+                self.logger.record("rollout/episode_reward_mean", avg_rew)
+
+    def _on_step(self) -> bool:
+
+        self.record_episode_reward_mean()
+
+        elapsed = time.time() - self.start_time
+        self.logger.record("time/elapsed_training_time_sec", elapsed)
 
         return True
 
     def _on_training_end(self) -> None:
-        self.writer.close()
+        elapsed = time.time() - self.start_time
+        self.total_elapsed_time += elapsed
+        self.logger.record("time/total_training_time_sec", self.total_elapsed_time)
+        
