@@ -33,7 +33,7 @@ class SC2GymEnvironment(gym.Env):
         self.GRID_SIZE = 11
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
 
-        self.name = f"dqn_local_grid_{self.GRID_SIZE}x{self.GRID_SIZE}"
+        self.name = f"local_grid_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
         self.sc2_env = SC2Env(
             map_name="CollectMineralShards",
@@ -220,9 +220,9 @@ class SC2FlattenEnv(SC2GymEnvironment):
     def __init__(self):
         super(SC2FlattenEnv, self).__init__()
 
-        self.name = "dqn_flatten_obs_env"
         self.GRID_SIZE = 11
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+        self.name = f"flatten_obs_env_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
         self.define_action_space()
         self.define_observation_space()

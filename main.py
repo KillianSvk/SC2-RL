@@ -5,12 +5,13 @@ import psutil
 
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+from stable_baselines3.common.logger import configure
 
 import torch
 from torch.optim import Adam, RMSprop, AdamW
 
 from sc2_gym_wrapper import *
-from agent_logging import MultiprocessTensorBoardCallback
+from agent_logging import MultiprocessTensorBoardCallback, CustomMetricsCallback
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
@@ -63,17 +64,19 @@ def make_env():
 
 def train(rl_algorithm):
     env = None
-    num_envs = 6
+    num_envs = 4
 
     try:
         # env = make_env()
-        env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
+        # env_name = env.name
 
+        env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
         env_names = env.get_attr("name")
-        model_name = env_names[0]
+        env_name = env_names[0]
 
         model = rl_algorithm(
             policy="MlpPolicy",
+            tensorboard_log="tensorboard",
             env=env,
             verbose=1,
             gradient_steps=8,
@@ -84,16 +87,26 @@ def train(rl_algorithm):
             device="cuda"
         )
 
-        TIMESTEPS = 250_000
-        for i in range(4 * 3):
+        model_name = model.__class__.__name__
+        agent_name = model_name + "_" + env_name
+
+        model_tensorboard_name = agent_name + "_" + time.strftime("%d-%m_%H_%M_%S")
+        log_path = os.path.join("tensorboard", model_tensorboard_name)
+        new_logger = configure(log_path, ["stdout", "tensorboard"])
+        model.set_logger(new_logger)
+
+        TIMESTEPS = 50_000
+        for i in range(1):
             model.learn(
                 total_timesteps=TIMESTEPS,
-                callback=MultiprocessTensorBoardCallback(),
+                callback=CustomMetricsCallback(),
+                log_interval=4,
+                tb_log_name="",
                 progress_bar=True,
                 reset_num_timesteps=False
                 )
 
-            model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
+            model.save(AGENTS_FOLDER + "/" + agent_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
         # model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{TIMESTEPS//1_000}k")
 
     finally:
@@ -124,7 +137,7 @@ def get_latest_model_path():
 def test(rl_algorithm):
     env = make_env()
     # model_path = get_latest_model_path()
-    model_path = os.path.join(AGENTS_FOLDER, "dqn_15x15_500k")
+    model_path = os.path.join(AGENTS_FOLDER, "dqn_flatten_obs_env_1500k")
 
     try:
         model = rl_algorithm.load(
@@ -180,8 +193,8 @@ def main(argv):
     # IF NOT CMD
     rl_algorithm = DQN
 
-    # train(rl_algorithm)
-    test(rl_algorithm)
+    train(rl_algorithm)
+    # test(rl_algorithm)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/

@@ -1,4 +1,6 @@
 .idea
+.venv
 agents
 tensorboard
 tensor_test
+old_tensorboard
