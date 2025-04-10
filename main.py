@@ -11,12 +11,14 @@ import torch
 from torch.optim import Adam, RMSprop, AdamW
 
 from sc2_gym_wrapper import *
-from agent_logging import MultiprocessTensorBoardCallback, CustomMetricsCallback
+from agent_logging import CustomMetricsCallback
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
+
 AGENTS_FOLDER = 'agents'
-ENV = SC2FlattenEnv
+ENV = SC2GymEnvironment
+ALGORITHM = DQN
 
 def run_from_cmd(argv):
     rl_algorithm = None
@@ -64,7 +66,7 @@ def make_env():
 
 def train(rl_algorithm):
     env = None
-    num_envs = 4
+    num_envs = 6
 
     try:
         # env = make_env()
@@ -90,13 +92,13 @@ def train(rl_algorithm):
         model_name = model.__class__.__name__
         agent_name = model_name + "_" + env_name
 
-        model_tensorboard_name = agent_name + "_" + time.strftime("%d-%m_%H_%M_%S")
-        log_path = os.path.join("tensorboard", model_tensorboard_name)
+        agent_folder_name = agent_name + "_" + time.strftime("%d-%m_%H-%M-%S")
+        log_path = os.path.join("tensorboard", agent_folder_name)
         new_logger = configure(log_path, ["stdout", "tensorboard"])
         model.set_logger(new_logger)
 
         TIMESTEPS = 50_000
-        for i in range(1):
+        for i in range(5):
             model.learn(
                 total_timesteps=TIMESTEPS,
                 callback=CustomMetricsCallback(),
@@ -106,7 +108,8 @@ def train(rl_algorithm):
                 reset_num_timesteps=False
                 )
 
-            model.save(AGENTS_FOLDER + "/" + agent_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
+            model_path = os.path.join(AGENTS_FOLDER, agent_folder_name, agent_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
+            model.save(model_path)
         # model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{TIMESTEPS//1_000}k")
 
     finally:
@@ -137,7 +140,7 @@ def get_latest_model_path():
 def test(rl_algorithm):
     env = make_env()
     # model_path = get_latest_model_path()
-    model_path = os.path.join(AGENTS_FOLDER, "dqn_flatten_obs_env_1500k")
+    model_path = "agents/local_grid_env_11x11/local_grid_env_11x11_1250k"
 
     try:
         model = rl_algorithm.load(
@@ -190,11 +193,8 @@ def main(argv):
         run_from_cmd(argv)
         return
 
-    # IF NOT CMD
-    rl_algorithm = DQN
-
-    train(rl_algorithm)
-    # test(rl_algorithm)
+    train(ALGORITHM)
+    # test(ALGORITHM)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/

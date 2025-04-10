@@ -1,7 +1,10 @@
+import math
+
 from absl import logging, flags
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+from enum import Enum
 
 from stable_baselines3.common.env_checker import check_env
 
@@ -23,6 +26,8 @@ class SC2GymEnvironment(gym.Env):
     def __init__(self):
         super(SC2GymEnvironment, self).__init__()
 
+        self.obs = None
+        self.sc2_env = None
         self.episodes = 0
         self.steps = 0
 
@@ -35,12 +40,21 @@ class SC2GymEnvironment(gym.Env):
 
         self.name = f"local_grid_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
+        self.init_sc2_env()
+        self.define_action_space()
+        self.define_observation_space()
+
+    def __str__(self):
+        return f"{self.name}_{self.GRID_SIZE}x{self.GRID_SIZE}"
+    
+    def init_sc2_env(self):
         self.sc2_env = SC2Env(
             map_name="CollectMineralShards",
             players=[Agent(sc2_env.Race.terran)],
             agent_interface_format=features.AgentInterfaceFormat(
                 feature_dimensions=features.Dimensions(screen=self.screen_size, minimap=self.minimap_size),
                 use_feature_units=True,
+                use_camera_position=True,
                 crop_to_playable_area=True
             ),
             game_steps_per_episode=0,
@@ -50,12 +64,6 @@ class SC2GymEnvironment(gym.Env):
         )
 
         self.obs = self.sc2_env.reset()[0]
-
-        self.define_action_space()
-        self.define_observation_space()
-
-    def __str__(self):
-        return f"{self.name}_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
     def define_action_space(self):
         """Defines the Gym-compatible action space for PySC2."""
@@ -280,11 +288,111 @@ class SC2BoxEnv(SC2GymEnvironment):
         return gym_obs
 
 
+class SC2MinimapEnv(SC2GymEnvironment):
+    class Direction(Enum):
+        N = 0
+        NE = 1
+        E = 2
+        SE = 3
+        S = 4
+        SW = 5
+        W = 6
+        NW = 7
+
+    def __init__(self):
+        super().__init__()
+
+        self.name = "minimap_obs"
+
+    def define_action_space(self):
+        self.action_space = spaces.Discrete(len(self.Direction))
+
+    def define_observation_space(self):
+        self.observation_space = spaces.Box(low=0, high=4, shape=(3, self.minimap_size, self.minimap_size), dtype=np.uint8)
+
+    def get_gym_observation(self):
+        selected = self.obs.observation.feature_minimap.selected
+        player_relative = self.obs.observation.feature_minimap.player_relative
+        visibility_map = self.obs.observation.feature_minimap.visibility_map
+
+        observation = np.array([selected, player_relative, visibility_map], dtype=np.uint8)
+
+        return observation
+
+    def direction_to_action(self, direction):
+        movement_distance = 5
+        selected_units = [unit for unit in self.obs.observation.feature_units if unit.is_selected]
+
+        if len(selected_units) > 0:
+            self.selected_marine = selected_units[0]
+
+        if self.selected_marine is not None:
+            selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+
+            match direction:
+                case self.Direction.N.value:
+                    new_x, new_y = selected_marine_x, selected_marine_y + movement_distance
+
+                case self.Direction.NE.value:
+                    new_x, new_y = selected_marine_x + movement_distance/math.sqrt(2), selected_marine_y + movement_distance/math.sqrt(2)
+
+                case self.Direction.E.value:
+                    new_x, new_y = selected_marine_x + movement_distance, selected_marine_y
+
+                case self.Direction.SE.value:
+                    new_x, new_y = selected_marine_x + movement_distance/math.sqrt(2), selected_marine_y - movement_distance/math.sqrt(2)
+
+                case self.Direction.S.value:
+                    new_x, new_y = selected_marine_x, selected_marine_y - movement_distance
+
+                case self.Direction.SW.value:
+                    new_x, new_y = selected_marine_x - movement_distance/math.sqrt(2), selected_marine_y - movement_distance/math.sqrt(2)
+
+                case self.Direction.W.value:
+                    new_x, new_y = selected_marine_x - movement_distance, selected_marine_y
+
+                case self.Direction.NW.value:
+                    new_x, new_y = selected_marine_x - movement_distance/math.sqrt(2), selected_marine_y + movement_distance/math.sqrt(2)
+
+                case _:
+                    raise Exception("Invalid action, doesn't correspond to any direction")
+
+            if self.is_in_bounds(new_x, new_y):
+                return FUNCTIONS.Move_screen("now", (new_x, new_y))
+
+        return FUNCTIONS.no_op()
+
+    def step(self, direction):
+        player_relative = self.obs.observation.feature_screen.player_relative
+        available_actions = self.obs.observation.available_actions
+
+        if FUNCTIONS.Move_screen.id in available_actions:
+            sc2_action = [self.direction_to_action(direction)]
+
+        else:
+            # sc2_action = [FUNCTIONS.select_army("select")]
+            marines_pos = self.xy_locations(player_relative == _PLAYER)
+            marine_pos = marines_pos[0]
+            sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
+
+        time_step = self.sc2_env.step(sc2_action)
+
+        self.obs = time_step[0]
+
+        obs = self.get_gym_observation()
+        reward = self.obs.reward
+        done = self.obs.last()
+        truncated = False
+        info = {}
+
+        return obs, reward, done, truncated, info
+
+
 if __name__ == "__main__":
     env = None
 
     try:
-        env = SC2FlattenEnv()
+        env = SC2MinimapEnv()
         check_env(env)
 
     finally:
