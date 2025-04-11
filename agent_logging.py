@@ -131,7 +131,7 @@ class CustomMetricsCallback(BaseCallback):
     def _on_step(self) -> bool:
         super()._on_step()
 
-        self.record_episode_reward_mean()
+        # self.record_episode_reward_mean()
 
         self.record_time_elapsed()
 

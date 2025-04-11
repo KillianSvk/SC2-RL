@@ -3,9 +3,12 @@ import time
 from absl import flags, app
 import psutil
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.logger import configure
+from stable_baselines3.common.monitor import Monitor
 
 import torch
 from torch.optim import Adam, RMSprop, AdamW
@@ -13,12 +16,16 @@ from torch.optim import Adam, RMSprop, AdamW
 from sc2_gym_wrapper import *
 from agent_logging import CustomMetricsCallback
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 FLAGS = flags.FLAGS
 
 AGENTS_FOLDER = 'agents'
-ENV = SC2GymEnvironment
+MONITOR_FOLDER = "monitor"
+ENV = SC2DirectionActionsEnv
 ALGORITHM = DQN
+TIMESTEPS_PER_REP = 50_000
+TRAINING_REPS = 6
+
 
 def run_from_cmd(argv):
     rl_algorithm = None
@@ -60,8 +67,12 @@ def run_from_cmd(argv):
 #        progress_bar=True,
 #    )
 
-def make_env():
-    return ENV()
+
+def make_env(env_id=0):
+    env = ENV()
+    filename = os.path.join(MONITOR_FOLDER, f"{env.name}_{time.strftime('%d-%m_%H-%M-%S')}", f"{env_id}")
+    monitored_env = Monitor(env, filename=filename)
+    return monitored_env
 
 
 def train(rl_algorithm):
@@ -72,7 +83,7 @@ def train(rl_algorithm):
         # env = make_env()
         # env_name = env.name
 
-        env = SubprocVecEnv([lambda: make_env() for _ in range(num_envs)])
+        env = SubprocVecEnv([lambda i=i: make_env(i) for i in range(num_envs)])
         env_names = env.get_attr("name")
         env_name = env_names[0]
 
@@ -81,7 +92,6 @@ def train(rl_algorithm):
             tensorboard_log="tensorboard",
             env=env,
             verbose=1,
-            gradient_steps=8,
             buffer_size=1_000_000,
             batch_size=128,
             target_update_interval=1_000,
@@ -97,10 +107,9 @@ def train(rl_algorithm):
         new_logger = configure(log_path, ["stdout", "tensorboard"])
         model.set_logger(new_logger)
 
-        TIMESTEPS = 50_000
-        for i in range(5):
+        for i in range(TRAINING_REPS):
             model.learn(
-                total_timesteps=TIMESTEPS,
+                total_timesteps=TIMESTEPS_PER_REP,
                 callback=CustomMetricsCallback(),
                 log_interval=4,
                 tb_log_name="",
@@ -108,13 +117,12 @@ def train(rl_algorithm):
                 reset_num_timesteps=False
                 )
 
-            model_path = os.path.join(AGENTS_FOLDER, agent_folder_name, agent_name + "_" + f"{(i+1)*TIMESTEPS//1_000}k")
+            model_path = os.path.join(AGENTS_FOLDER, agent_folder_name, agent_name + "_" + f"{(i+1) * TIMESTEPS_PER_REP // 1_000}k")
             model.save(model_path)
         # model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{TIMESTEPS//1_000}k")
 
-    finally:
-        if env is not None:
-            env.close()
+    except Exception as error:
+        print(str(error))
 
         parent = psutil.Process(os.getpid())
         for child in parent.children(recursive=True):
@@ -124,6 +132,9 @@ def train(rl_algorithm):
         # If any processes are still alive, force kill them
         for child in alive:
             child.kill()
+
+    if env is not None:
+        env.close()
 
 
 def get_latest_model_path():
@@ -140,7 +151,8 @@ def get_latest_model_path():
 def test(rl_algorithm):
     env = make_env()
     # model_path = get_latest_model_path()
-    model_path = "agents/local_grid_env_11x11/local_grid_env_11x11_1250k"
+    model_path = "agents/DQN_direction_actions_11-04_19-06-00/DQN_direction_actions_300k.zip"
+    num_testing_episodes = 20
 
     try:
         model = rl_algorithm.load(
@@ -157,7 +169,7 @@ def test(rl_algorithm):
         episodes = 0
         actions_dict = dict()
 
-        while True:
+        while episodes < num_testing_episodes:
             action, _states = model.predict(obs)
             action_int = int(action)
 
@@ -184,7 +196,7 @@ def test(rl_algorithm):
                 episode_reward = 0
                 actions_dict = dict()
 
-    finally:
+    except KeyboardInterrupt:
         env.close()
 
 
@@ -193,8 +205,8 @@ def main(argv):
         run_from_cmd(argv)
         return
 
-    train(ALGORITHM)
-    # test(ALGORITHM)
+    # train(ALGORITHM)
+    test(ALGORITHM)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
