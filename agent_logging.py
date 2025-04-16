@@ -90,13 +90,20 @@ from torch.utils.tensorboard import SummaryWriter
 #         super().on_training_end()
 
 
-class CustomMetricsCallback(BaseCallback):
-    def __init__(self, verbose=0):
+class CustomCallback(BaseCallback):
+    def __init__(self, save_freq, save_path, model_name, verbose=0):
         super().__init__(verbose)
+
+        self.save_freq = save_freq
+        self.save_path = save_path
+        self.model_name = model_name
 
         self.start_time = None
         self.time_elapsed = 0
         self.episode_rewards = None
+
+    def _init_callback(self) -> None:
+        os.makedirs(self.save_path, exist_ok=True)
 
     def on_training_start(self, locals_: dict[str, Any], globals_: dict[str, Any]) -> None:
         super().on_training_start(locals_, globals_)
@@ -128,13 +135,22 @@ class CustomMetricsCallback(BaseCallback):
         elapsed = time.perf_counter() - self.start_time
         self.logger.record("time/training_time", self.time_elapsed + elapsed)
 
+    def save_model(self):
+        filename = os.path.join(self.save_path, f"{self.model_name}_{self.num_timesteps // 1_000}k.zip")
+        self.model.save(path=filename)
+
     def _on_step(self) -> bool:
         super()._on_step()
 
-        self.record_episode_reward_mean()
+        # self.record_episode_reward_mean()
 
-        self.record_time_elapsed()
+        # self.record_time_elapsed()
+        cock = "sad"
 
+        if self.locals["self"].n_envs > (self.num_timesteps % self.save_freq) >= 0 and self.num_timesteps != 0:
+            self.save_model()
+
+        cock = "sadder"
         # now_time = time.time()
         # elapsed = now_time - self.start_time
         # self.logger.record("time/time_elapsed", elapsed)

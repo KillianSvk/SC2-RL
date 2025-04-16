@@ -44,15 +44,17 @@ class HardcodedFindAndDefeatZerglings(base_agent.BaseAgent):
 
         observation = obs.observation
 
-        for action in observation.available_actions:
-            print(actions.FUNCTIONS[action])
+        # for action in observation.available_actions:
+        #     print(actions.FUNCTIONS[action])
 
         my_obs = np.zeros(shape=(2, 32, 32), dtype=np.int32)
 
-        player_relative = observation.feature_minimap.player_relative
-        unit_type = observation.feature_minimap.unit_type
-        selected = observation.feature_minimap.selected
-        visibility = observation.feature_minimap.visibility
+        selected = observation.feature_screen.selected
+        player_relative = observation.feature_screen.player_relative
+        pathable = observation.feature_screen.pathable
+
+        for line in list(pathable):
+            print(line)
 
         # player_relative = observation.feature_screen.player_relative
         # player_id = observation.feature_screen.player_id
@@ -66,7 +68,7 @@ def main(argv):
     # put while cycle here for infinity games
 
     with sc2_env.SC2Env(
-            map_name="FindAndDefeatZerglings",
+            map_name="CollectMineralShardsRooms",
             players=[sc2_env.Agent(sc2_env.Race.zerg)],
             agent_interface_format=features.AgentInterfaceFormat(
                 feature_dimensions=features.Dimensions(screen=64, minimap=64),
