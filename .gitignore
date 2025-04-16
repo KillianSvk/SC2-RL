@@ -2,6 +2,8 @@
 .venv
 agents
 tensorboard
-tensor_pptx
-old_tensorboard
+tensorboard_pptx
+tensorboard_old
 monitor
+optuna
+/optuna_cnn/

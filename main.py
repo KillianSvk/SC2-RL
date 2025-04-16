@@ -2,6 +2,7 @@ import os
 import time
 from absl import flags, app
 import psutil
+import subprocess
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
@@ -9,22 +10,34 @@ from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.env_util import make_vec_env
 
 import torch
 from torch.optim import Adam, RMSprop, AdamW
 
 from sc2_gym_wrapper import *
-from agent_logging import CustomMetricsCallback
-
+from custom_features import *
+from agent_logging import CustomCallback
 
 FLAGS = flags.FLAGS
 
 AGENTS_FOLDER = 'agents'
 MONITOR_FOLDER = "monitor"
-ENV = SC2DirectionActionsEnv
+
+NUM_ENVS = 6
+ENV = SC2GymEnvironment
 ALGORITHM = DQN
-TIMESTEPS_PER_REP = 50_000
-TRAINING_REPS = 6
+POLICY = "MlpPolicy"
+POLICY_KWARGS = dict(
+    # features_extractor_class=CustomizableCNN,
+    # features_extractor_kwargs=dict(features_dim=256),
+    # normalize_images=False,
+
+    # net_arch=[256, 256, 128]
+    # activation_fn=nn.ReLU
+)
+TIMESTEPS = 50_000
+SAVING_FREQ = 10_000
 
 
 def run_from_cmd(argv):
@@ -47,111 +60,113 @@ def run_from_cmd(argv):
         test(rl_algorithm)
 
 
-# Adam    learning_rate=1e-4
-# RMSprop	learning_rate=2.5e-4
-
-# model = rl_algorithm(
-#        policy="MultiInputPolicy",
-#        env=env,
-#        verbose=1,
-#        tensorboard_log="tensor_log",
-#        gradient_steps=8,
-#        buffer_size=50_000,
-#        batch_size=128,
-#        target_update_interval=1_000,
-#        device="cuda"
-#    )
-#
-#    model.learn(
-#        total_timesteps=50_000,
-#        progress_bar=True,
-#    )
+def get_env():
+    return ENV()
 
 
-def make_env(env_id=0):
+def make_monitored_env(start_time=None, env_id=0):
     env = ENV()
-    filename = os.path.join(MONITOR_FOLDER, f"{env.name}_{time.strftime('%d-%m_%H-%M-%S')}", f"{env_id}")
+    filename = os.path.join(MONITOR_FOLDER, f"{env.name}_{start_time}", f"{env_id}")
     monitored_env = Monitor(env, filename=filename)
     return monitored_env
 
 
-def train(rl_algorithm):
+def env_error_cleanup():
+    # Terminate child processes of the current script
+    parent = psutil.Process(os.getpid())
+    children = parent.children(recursive=True)
+    for child in children:
+        child.terminate()
+
+    gone, alive = psutil.wait_procs(children, timeout=3)
+    for child in alive:
+        child.kill()
+
+    # Kill leftover SC2/Blizzard processes
+    targets = ['sc2', 'starcraft', 'blizzard', 'blizzarderror']
+    for proc in psutil.process_iter(['pid', 'name']):
+        name = proc.info['name']
+        if name and any(t in name.lower() for t in targets):
+            proc.kill()
+
+
+def make_envs(start_time):
     env = None
-    num_envs = 6
 
-    try:
-        # env = make_env()
-        # env_name = env.name
+    # Fixes weird Sc2 broken pipe error during init
+    while env is None:
+        try:
+            # env = make_vec_env()
+            env = SubprocVecEnv([lambda i=i: make_monitored_env(start_time, i) for i in range(NUM_ENVS)])
 
-        env = SubprocVecEnv([lambda i=i: make_env(i) for i in range(num_envs)])
-        env_names = env.get_attr("name")
-        env_name = env_names[0]
+        except BrokenPipeError as error:
+            env_error_cleanup()
 
-        model = rl_algorithm(
-            policy="MlpPolicy",
-            tensorboard_log="tensorboard",
-            env=env,
-            verbose=1,
-            buffer_size=1_000_000,
-            batch_size=128,
-            target_update_interval=1_000,
-            exploration_fraction=0.2,
-            device="cuda"
-        )
+    return env
 
-        model_name = model.__class__.__name__
-        agent_name = model_name + "_" + env_name
 
-        agent_folder_name = agent_name + "_" + time.strftime("%d-%m_%H-%M-%S")
-        log_path = os.path.join("tensorboard", agent_folder_name)
-        new_logger = configure(log_path, ["stdout", "tensorboard"])
-        model.set_logger(new_logger)
+def train(rl_algorithm):
+    start_time = time.strftime('%d-%m_%H-%M')
+    env = make_envs(start_time)
 
-        for i in range(TRAINING_REPS):
-            model.learn(
-                total_timesteps=TIMESTEPS_PER_REP,
-                callback=CustomMetricsCallback(),
-                log_interval=4,
-                tb_log_name="",
-                progress_bar=True,
-                reset_num_timesteps=False
-                )
+    env_names = env.get_attr("name")
+    env_name = env_names[0]
 
-            model_path = os.path.join(AGENTS_FOLDER, agent_folder_name, agent_name + "_" + f"{(i+1) * TIMESTEPS_PER_REP // 1_000}k")
-            model.save(model_path)
-        # model.save(AGENTS_FOLDER + "/" + model_name + "_" + f"{TIMESTEPS//1_000}k")
+    model = rl_algorithm(
+        env=env,
+        policy=POLICY,
+        policy_kwargs=POLICY_KWARGS,
+        tensorboard_log="tensorboard",
+        device="cuda",
+    )
 
-    except Exception as error:
-        print(str(error))
+    model_name = model.__class__.__name__
+    agent_name = model_name + "_" + env_name
+    agent_folder_name = agent_name + "_" + start_time
 
-        parent = psutil.Process(os.getpid())
-        for child in parent.children(recursive=True):
-            child.terminate()  # Gracefully terminate
-        gone, alive = psutil.wait_procs(parent.children(), timeout=3)  # Wait for cleanup
+    callback = CustomCallback(
+        save_freq=SAVING_FREQ,
+        save_path=os.path.join(AGENTS_FOLDER, agent_folder_name),
+        model_name=agent_name
+    )
 
-        # If any processes are still alive, force kill them
-        for child in alive:
-            child.kill()
+    model.learn(
+        total_timesteps=TIMESTEPS,
+        callback=callback,
+        log_interval=4,
+        tb_log_name=agent_folder_name,
+        progress_bar=True,
+        reset_num_timesteps=False
+    )
 
-    if env is not None:
-        env.close()
+    env.close()
 
 
 def get_latest_model_path():
-    existing_runs = sorted(
+    existing_agents = sorted(
         os.listdir(AGENTS_FOLDER),
         key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
         reverse=True
     )
-    last_run = existing_runs[0]
-    last_run = last_run.split(".")[0]
-    return os.path.join(AGENTS_FOLDER, last_run)
+
+    last_agent = existing_agents[0]
+    agent_path = os.path.join(AGENTS_FOLDER, last_agent)
+    agent_models = sorted(
+        os.listdir(agent_path),
+        key=lambda x: os.path.getctime(os.path.join(agent_path, x)),
+        reverse=True
+    )
+
+    last_agent_model = agent_models[0]
+    last_agent_model = last_agent_model.split(".")[0]
+
+    return os.path.join(AGENTS_FOLDER, last_agent, last_agent_model)
 
 
 def test(rl_algorithm):
-    env = make_env()
-    # model_path = get_latest_model_path()
-    model_path = "agents/DQN_direction_actions_11-04_19-06-00/DQN_direction_actions_300k.zip"
+    env = get_env()
+    model_path = get_latest_model_path()
+    # model_path = "agents/DQN_screen_36x36_12-04_17-03-47/DQN_screen_36x36_300k"
     num_testing_episodes = 20
 
     try:
@@ -205,8 +220,8 @@ def main(argv):
         run_from_cmd(argv)
         return
 
-    # train(ALGORITHM)
-    test(ALGORITHM)
+    train(ALGORITHM)
+    # test(ALGORITHM)
 
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
