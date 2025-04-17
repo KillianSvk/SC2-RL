@@ -1,13 +1,9 @@
 import os
 
-import torch
-
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-import psutil
 import optuna
 import torch.nn as nn
-from main import make_monitored_env, env_error_cleanup
 from optuna.visualization import plot_optimization_history, plot_parallel_coordinate, plot_param_importances, plot_slice, plot_contour
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
@@ -17,7 +13,8 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from sc2_gym_wrapper import *
+from sc2_environments import *
+from utils import make_monitored_env, env_error_cleanup
 from custom_features import CustomizableCNN
 
 OPTUNA_FOLDER = "optuna_screen"

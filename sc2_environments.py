@@ -1,13 +1,12 @@
 import math
 import os
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
 import numpy as np
 import matplotlib.pyplot as plt
 from absl import logging, flags
 from enum import Enum
 
+import cv2
 import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3.common.env_checker import check_env
@@ -16,6 +15,7 @@ from pysc2.env import sc2_env
 from pysc2.lib import actions, features, units, portspicker
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
 FLAGS(["run.py"])
 
@@ -135,11 +135,11 @@ class SC2GymEnvironment(gym.Env):
             selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
 
             # assign out of bounds
-            # for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
-            #     for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
-            #         global_x, global_y = selected_marine_x + local_x, selected_marine_y + local_y
-            #         if not self.is_in_bounds(global_x, global_y):
-            #             bounds_grid[local_y + self.GRID_HALF_SIZE, local_x + self.GRID_HALF_SIZE] = 1
+            for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+                for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+                    global_x, global_y = selected_marine_x + local_x, selected_marine_y + local_y
+                    if not self.is_in_bounds(global_x, global_y):
+                        bounds_grid[local_y + self.GRID_HALF_SIZE, local_x + self.GRID_HALF_SIZE] = 1
 
             # assign pathable
             pathable_screen = self.obs.observation.feature_screen.pathable
@@ -538,6 +538,31 @@ class SC2ScreenEnv(SC2GymEnvironment):
         info = self.get_info()
 
         return obs, reward, done, truncated, info
+
+    def render(self, mode="human"):
+        obs = self.get_gym_observation()  # This already includes the custom background
+        frame = obs.transpose((1, 2, 0))  # CHW → HWC for OpenCV
+
+        old_background_color = [0, 0, 0]
+        new_background_color = [20, 100, 20]
+        mask = cv2.inRange(frame, np.array(old_background_color), np.array(old_background_color))
+        frame[mask > 0] = new_background_color
+
+        scale_factor = 20
+        enlarged_frame = cv2.resize(
+            frame,
+            (self.screen_size * scale_factor, self.screen_size * scale_factor),
+            interpolation=cv2.INTER_NEAREST
+        )
+
+        # Convert RGB to BGR for OpenCV display
+        frame_bgr = cv2.cvtColor(enlarged_frame, cv2.COLOR_RGB2BGR)
+
+        # Show the image
+        cv2.imshow("Minimap Observation", frame_bgr)
+        cv2.waitKey(1)  # Refresh window
+
+
 
 if __name__ == "__main__":
     test_env = None
