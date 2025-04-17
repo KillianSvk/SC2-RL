@@ -20,10 +20,11 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from sc2_gym_wrapper import *
 from custom_features import CustomizableCNN
 
-OPTUNA_FOLDER = "optuna"
+OPTUNA_FOLDER = "optuna_screen"
 NUM_ENVS = 6
 ENV = SC2ScreenEnv
 ALGORITHM = DQN
+POLICY = "CnnPolicy"
 TIMESTEPS_PER_MODEL = 250_000
 N_TRIALS = 30
 N_STARTUP_TRIALS = 5
@@ -72,9 +73,9 @@ def optimize_dqn(trial):
         except BrokenPipeError as error:
             env_error_cleanup()
 
-    model = DQN(
+    model = ALGORITHM(
         env=env,
-        policy="CnnPolicy",
+        policy=POLICY,
         policy_kwargs=cnn_kwargs,
 
         buffer_size=buffer_size,

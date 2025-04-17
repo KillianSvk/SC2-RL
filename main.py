@@ -25,9 +25,9 @@ AGENTS_FOLDER = 'agents'
 MONITOR_FOLDER = "monitor"
 
 NUM_ENVS = 6
-ENV = SC2GymEnvironment
+ENV = SC2ScreenEnv
 ALGORITHM = DQN
-POLICY = "MlpPolicy"
+POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
@@ -36,8 +36,8 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 50_000
-SAVING_FREQ = 10_000
+TIMESTEPS = 15_000_000
+SAVING_FREQ = 250_000
 
 
 def run_from_cmd(argv):
@@ -105,20 +105,27 @@ def make_envs(start_time):
     return env
 
 
-def train(rl_algorithm):
+def train(algorithm):
     start_time = time.strftime('%d-%m_%H-%M')
     env = make_envs(start_time)
 
     env_names = env.get_attr("name")
     env_name = env_names[0]
 
-    model = rl_algorithm(
+    model = algorithm(
         env=env,
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
         tensorboard_log="tensorboard",
         device="cuda",
     )
+
+    # model_path = "agents/DQN_screen_36x36_15-04_23-42-25/DQN_screen_36x36_15000k.zip"
+    # model = algorithm.load(
+    #     path=model_path,
+    #     env=env,
+    #     device="cuda"
+    # )
 
     model_name = model.__class__.__name__
     agent_name = model_name + "_" + env_name
@@ -169,49 +176,47 @@ def test(rl_algorithm):
     # model_path = "agents/DQN_screen_36x36_12-04_17-03-47/DQN_screen_36x36_300k"
     num_testing_episodes = 20
 
-    try:
-        model = rl_algorithm.load(
-            path=model_path,
-            env=env,
-            device="cuda"
-        )
+    model = rl_algorithm.load(
+        path=model_path,
+        env=env,
+        device="cuda"
+    )
 
-        assert model is not None, "Model failed to load!"
+    assert model is not None, "Model failed to load!"
 
-        obs, info = env.reset()
-        total_reward = 0
-        episode_reward = 0
-        episodes = 0
-        actions_dict = dict()
+    obs, info = env.reset()
+    total_reward = 0
+    episode_reward = 0
+    episodes = 0
+    actions_dict = dict()
 
-        while episodes < num_testing_episodes:
-            action, _states = model.predict(obs)
-            action_int = int(action)
+    while episodes < num_testing_episodes:
+        action, _states = model.predict(obs)
+        action_int = int(action)
 
-            if action_int not in actions_dict.keys():
-                actions_dict[action_int] = 0
+        if action_int not in actions_dict.keys():
+            actions_dict[action_int] = 0
 
-            actions_dict[action_int] += 1
+        actions_dict[action_int] += 1
 
-            obs, reward, done, truncated, info = env.step(action)
+        obs, reward, done, truncated, info = env.step(action)
 
-            episode_reward += reward
-            total_reward += reward
+        episode_reward += reward
+        total_reward += reward
 
-            if done or truncated:
-                episodes += 1
+        if done or truncated:
+            episodes += 1
 
-                print(actions_dict)
+            print(actions_dict)
 
-                print(f"Episode reward: {episode_reward}")
-                print(f"Average episode reward: {total_reward / episodes:.2f} after {episodes} episodes")
-                print("-------------------------------------")
+            print(f"Episode reward: {episode_reward}")
+            print(f"Average episode reward: {total_reward / episodes:.2f} after {episodes} episodes")
+            print("-------------------------------------")
 
-                obs, info = env.reset()
-                episode_reward = 0
-                actions_dict = dict()
+            obs, info = env.reset()
+            episode_reward = 0
+            actions_dict = dict()
 
-    except KeyboardInterrupt:
         env.close()
 
 
