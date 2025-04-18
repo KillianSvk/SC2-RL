@@ -9,7 +9,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 ENV = SC2ScreenEnv
 ALGORITHM = DQN
-NUM_TESTING_EPISODES = 20
+NUM_TESTING_EPISODES = 10
 
 
 def test(algorithm):

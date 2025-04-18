@@ -1,5 +1,6 @@
 import os
 import psutil
+import time
 
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
@@ -9,9 +10,12 @@ MONITOR_FOLDER = "monitor"
 AGENTS_FOLDER = 'agents'
 
 
-def make_monitored_env(env_class, start_time, env_id=0):
+def make_monitored_env(env_class, start_time=None, env_id=0):
     env = env_class()
-    filename = os.path.join(MONITOR_FOLDER, f"{env.name}_{start_time}", f"{env_id}")
+    filename = None
+    if start_time is not None:
+        filename = os.path.join(MONITOR_FOLDER, f"{env.name}_{start_time}", f"{env_id}")
+
     monitored_env = Monitor(env, filename=filename)
     return monitored_env
 
@@ -46,6 +50,7 @@ def make_envs(env_class, num_envs, start_time):
 
         except BrokenPipeError as error:
             env_error_cleanup()
+            time.sleep(1)
 
     return env
 
