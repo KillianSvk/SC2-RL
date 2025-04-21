@@ -4,6 +4,7 @@ import time
 
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.env_util import make_vec_env as sb3_make_vec_env
 
 
 MONITOR_FOLDER = "monitor"
@@ -39,18 +40,19 @@ def env_error_cleanup():
             proc.kill()
 
 
-def make_envs(env_class, num_envs, start_time):
+def make_envs(env_class, num_envs):
     env = None
-
-    # Fixes weird Sc2 broken pipe error during init
     while env is None:
         try:
-            # env = make_vec_env()
-            env = SubprocVecEnv([lambda i=i: make_monitored_env(env_class, start_time, i) for i in range(num_envs)])
+            env = sb3_make_vec_env(env_class, n_envs=num_envs, vec_env_cls=SubprocVecEnv)
+            # env = SubprocVecEnv([lambda i=i: make_monitored_env(ENV, env_id=i) for i in range(NUM_ENVS)])
 
         except BrokenPipeError as error:
             env_error_cleanup()
             time.sleep(1)
+
+        except Exception as error:
+            print(error)
 
     return env
 

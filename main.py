@@ -26,8 +26,8 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 15_000_000
-SAVING_FREQ = 250_000
+TIMESTEPS = 50_000
+SAVING_FREQ = 10_000
 
 
 def run_from_cmd(argv):

@@ -601,9 +601,13 @@ class SC2ScreenEnv(SC2GymWrapper):
         reward = self.reward_func()
         done = self.obs.last()
         truncated = False
+
         info = {}
+        score = self.obs.observation['score_cumulative']['score']
+        info["score"] = score
 
         return obs, reward, done, truncated, info
+
 
     def render(self, mode="human"):
         obs = self.get_gym_observation()

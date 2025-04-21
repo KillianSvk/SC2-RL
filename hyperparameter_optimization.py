@@ -11,9 +11,10 @@ from optuna.samplers import TPESampler
 from stable_baselines3 import DQN
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.env_util import make_vec_env as sb3_make_vec_env
 
 from sc2_environments import *
-from utils import make_monitored_env, env_error_cleanup
+from utils import make_monitored_env, make_envs
 from custom_features import CustomizableCNN
 
 OPTUNA_FOLDER = "optuna_screen"
@@ -21,10 +22,10 @@ NUM_ENVS = 6
 ENV = SC2ScreenEnv
 ALGORITHM = DQN
 POLICY = "CnnPolicy"
-TIMESTEPS_PER_MODEL = 50_000
-N_TRIALS = 10
+TIMESTEPS_PER_MODEL = 500_000
+N_TRIALS = 30
 N_STARTUP_TRIALS = 5
-N_EVAL_EPISODES = 20
+N_EVAL_EPISODES = 100
 
 
 def optimize_dqn(trial):
@@ -56,14 +57,7 @@ def optimize_dqn(trial):
     # cnn_kwargs["net_arch"] = trial.suggest_categorical("net_arch", [net_arch_tiny, net_arch_default, net_arch_big])
     # cnn_kwargs["activation_fn"] = trial.suggest_categorical("activation_fn", [nn.Tanh, nn.ReLU,])
 
-    env = None
-    while env is None:
-        try:
-            env = SubprocVecEnv([lambda i=i: make_monitored_env(ENV, env_id=i) for i in range(NUM_ENVS)])
-
-        except BrokenPipeError as error:
-            env_error_cleanup()
-            time.sleep(1)
+    env = make_envs(ENV, NUM_ENVS)
 
     model = ALGORITHM(
         env=env,
