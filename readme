@@ -9,5 +9,5 @@ recommended to use virtual environment for managing dependencies
 
 donwloading dependencies from [requirements](requirements.txt)
 download [proto files](https://github.com/Blizzard/s2client-proto)
-Run protoc in s2clientprotocol on .proto files
+Run protoc in s2clientprotocol on .proto files (protoc --proto_path=. --python_out=. s2clientprotocol/*.proto)
 replace the old files from your s2clientprotocol directory with newly genereted files
