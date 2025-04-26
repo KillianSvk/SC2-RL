@@ -14,7 +14,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 
 NUM_ENVS = 6
-ENV = SC2ScreenEnv
+ENV = SC2MiddleInvisibleEnv
 ALGORITHM = DQN
 POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy
 POLICY_KWARGS = dict(
@@ -25,8 +25,8 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 50_000
-SAVING_FREQ = 10_000
+TIMESTEPS = 15_000_000
+SAVING_FREQ = 250_000
 
 
 def train(algorithm):
@@ -37,21 +37,19 @@ def train(algorithm):
     env_names = env.get_attr("name")
     env_name = env_names[0]
 
-    # model = algorithm(
-    #     env=env,
-    #     policy=POLICY,
-    #     policy_kwargs=POLICY_KWARGS,
-    #     tensorboard_log="tensorboard",
-    #     device="cuda",
-    # )
-    #
-
-    model_path = "agents/DQN_screen_36x36_20-04_00-43/DQN_screen_36x36_30000k.zip"
-    model = algorithm.load(
-        path=model_path,
+    model = algorithm(
         env=env,
-        device="cuda"
+        policy=POLICY,
+        policy_kwargs=POLICY_KWARGS,
+        tensorboard_log="tensorboard",
+        device="cuda",
     )
+
+    # model_path = "agents/DQN_screen_36x36_20-04_00-43/DQN_screen_36x36_30000k.zip"
+    # model = algorithm.load(
+    #     path=model_path,
+    #     env=env,
+    # )
 
     model_name = model.__class__.__name__
     agent_name = model_name + "_" + env_name

@@ -7,7 +7,7 @@ from sc2_environments import *
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 
-ENV = SC2ScreenEnv
+ENV = SC2MiddleInvisibleEnv
 ALGORITHM = DQN
 NUM_TESTING_EPISODES = 100
 
@@ -15,8 +15,8 @@ NUM_TESTING_EPISODES = 100
 def test(algorithm):
     env = ENV()
 
-    # model_path = get_latest_model_path()
-    model_path = "agents/DQN_screen_36x36_20-04_00-43/DQN_screen_36x36_30000k"
+    model_path = get_latest_model_path()
+    # model_path = "agents/DQN_screen_36x36_22-04_00-15/DQN_screen_36x36_45000k"
 
     model = algorithm.load(
         path=model_path,

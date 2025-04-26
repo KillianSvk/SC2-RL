@@ -25,6 +25,7 @@ FLAGS(["run.py"])
 FUNCTIONS = actions.FUNCTIONS
 _PLAYER = 1
 _NEUTRAL = 3
+_MINERAL_SHARD = 1680
 
 
 class SC2GymWrapper(gym.Env, ABC):
@@ -167,14 +168,7 @@ class SC2GymWrapper(gym.Env, ABC):
         self.obs = sc2_env.reset()[0]
 
     def in_screen_bounds(self, x, y) -> bool:
-        """Return True if position in inside the screen bounds"""
-        if x < 0 or x >= self.screen_size:
-            return False
-
-        if y < 0 or y >= self.screen_size:
-            return False
-
-        return True
+        return 0 <= x < self.screen_size and 0 <= y < self.screen_size
 
     @staticmethod
     def xy_locations(mask):
@@ -299,7 +293,7 @@ class SC2LocalObservationEnv(SC2GymWrapper):
 
         return reward
 
-    def get_info(self):
+    def get_step_info(self):
         info = {}
 
         score = self.obs.observation['score_cumulative']['score']
@@ -340,7 +334,7 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         truncated = False
 
         # Info dictionary (optional debug info)
-        info = {}
+        info = self.get_step_info()
         obs = self.get_gym_observation()
 
         return obs, reward, done, truncated, info
@@ -350,12 +344,87 @@ class SC2LocalObservationEnv(SC2GymWrapper):
 
         self.obs = self.sc2_env.reset()[0]
         gym_observation = self.get_gym_observation()
-        info = self.get_info()
+        info = self.get_step_info()
 
         return gym_observation, info
 
     def render(self, mode="human"):
         pass
+
+
+class SC2LocalRoomsEnv(SC2LocalObservationEnv):
+
+    @property
+    def name(self):
+        return f"rooms_local_grid_{self.GRID_SIZE}x{self.GRID_SIZE}"
+
+    @property
+    def observation_space(self):
+        observation_space = spaces.Box(low=0, high=1, shape=(2, self.GRID_SIZE, self.GRID_SIZE), dtype=np.uint8)
+
+        return observation_space
+
+    def init_sc2_env(self):
+        sc2_env = SC2Env(
+            map_name="CollectMineralShardsRooms",
+            players=[Agent(Race.terran)],
+            agent_interface_format=features.AgentInterfaceFormat(
+                feature_dimensions=features.Dimensions(screen=self.screen_size, minimap=self.minimap_size),
+                use_feature_units=True,
+                use_camera_position=True,
+                crop_to_playable_area=True,
+                action_space=actions.ActionSpace.FEATURES,
+            ),
+            game_steps_per_episode=0,
+            step_mul=8,
+            realtime=False,
+            visualize=False
+        )
+
+        self.sc2_env = sc2_env
+        self.obs = sc2_env.reset()[0]
+
+    def get_gym_observation(self):
+        selected_units = [unit for unit in self.obs.observation.feature_units if unit.is_selected]
+
+        if len(selected_units) > 0:
+            self.selected_marine = selected_units[0]
+
+        screen = self.obs.observation.feature_screen.player_relative
+
+        bounds_grid = np.zeros((self.GRID_SIZE, self.GRID_SIZE), dtype=np.uint8)
+        pathable_grid = np.zeros((self.GRID_SIZE, self.GRID_SIZE), dtype=np.uint8)
+        mineral_grid = np.zeros((self.GRID_SIZE, self.GRID_SIZE), dtype=np.uint8)
+
+        if self.selected_marine is not None:
+            selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+
+            # # assign out of bounds
+            # for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+            #     for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+            #         global_x, global_y = selected_marine_x + local_x, selected_marine_y + local_y
+            #         if not self.in_screen_bounds(global_x, global_y):
+            #             bounds_grid[local_y + self.GRID_HALF_SIZE, local_x + self.GRID_HALF_SIZE] = 1
+
+            # assign pathable
+            pathable_screen = self.obs.observation.feature_screen.pathable
+            for local_y in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+                for local_x in range(-self.GRID_HALF_SIZE, self.GRID_HALF_SIZE + 1):
+                    global_x, global_y = selected_marine_x + local_x, selected_marine_y + local_y
+                    if self.in_screen_bounds(global_x, global_y):
+                        pathable_grid[local_y, local_x] = pathable_screen[global_y, global_x]
+
+                    else:
+                        pathable_grid[local_y, local_x] = 0
+
+            # assign minerals
+            minerals = self.xy_locations(screen == _NEUTRAL)
+            for x, y in minerals:
+                if self.is_in_local_grid(x, y):
+                    local_x, local_y = self.global_to_local_pos(x, y)
+                    mineral_grid[local_y, local_x] = 1
+
+        return np.array([pathable_grid, mineral_grid])
 
 
 class SC2FlattenEnv(SC2LocalObservationEnv):
@@ -384,114 +453,6 @@ class SC2FlattenEnv(SC2LocalObservationEnv):
         return flatten_gym_obs
 
 
-class SC2DirectionActionsEnv(SC2LocalObservationEnv):
-    class Direction(Enum):
-        N = 0
-        NE = 1
-        E = 2
-        SE = 3
-        S = 4
-        SW = 5
-        W = 6
-        NW = 7
-
-    def __init__(self):
-        super().__init__()
-
-    @property
-    def name(self):
-        return "direction_actions"
-
-    @property
-    def action_space(self):
-        return spaces.Discrete(len(self.Direction))
-
-    @property
-    def observation_space(self):
-        return spaces.Box(low=0, high=4, shape=(3, self.minimap_size, self.minimap_size), dtype=np.uint8)
-
-    def get_gym_observation(self):
-        selected = self.obs.observation.feature_screen.selected
-        player_relative = self.obs.observation.feature_screen.player_relative
-        pathable = self.obs.observation.feature_screen.pathable
-
-        observation = np.array([selected, player_relative, pathable], dtype=np.uint8)
-
-        return observation
-
-    def direction_to_action(self, direction):
-        movement_distance = 5
-        selected_units = [unit for unit in self.obs.observation.feature_units if unit.is_selected]
-
-        if len(selected_units) > 0:
-            self.selected_marine = selected_units[0]
-
-        if self.selected_marine is not None:
-            selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
-
-            match direction:
-                case self.Direction.N.value:
-                    new_x, new_y = selected_marine_x, selected_marine_y + movement_distance
-
-                case self.Direction.NE.value:
-                    new_x, new_y = selected_marine_x + movement_distance / math.sqrt(
-                        2), selected_marine_y + movement_distance / math.sqrt(2)
-
-                case self.Direction.E.value:
-                    new_x, new_y = selected_marine_x + movement_distance, selected_marine_y
-
-                case self.Direction.SE.value:
-                    new_x, new_y = selected_marine_x + movement_distance / math.sqrt(
-                        2), selected_marine_y - movement_distance / math.sqrt(2)
-
-                case self.Direction.S.value:
-                    new_x, new_y = selected_marine_x, selected_marine_y - movement_distance
-
-                case self.Direction.SW.value:
-                    new_x, new_y = selected_marine_x - movement_distance / math.sqrt(
-                        2), selected_marine_y - movement_distance / math.sqrt(2)
-
-                case self.Direction.W.value:
-                    new_x, new_y = selected_marine_x - movement_distance, selected_marine_y
-
-                case self.Direction.NW.value:
-                    new_x, new_y = selected_marine_x - movement_distance / math.sqrt(
-                        2), selected_marine_y + movement_distance / math.sqrt(2)
-
-                case _:
-                    raise Exception("Invalid action, doesn't correspond to any direction")
-
-            if self.in_screen_bounds(new_x, new_y):
-                return FUNCTIONS.Move_screen("now", (new_x, new_y))
-
-        return FUNCTIONS.no_op()
-
-    def step(self, direction):
-        player_relative = self.obs.observation.feature_screen.player_relative
-        available_actions = self.obs.observation.available_actions
-
-        if FUNCTIONS.Move_screen.id in available_actions:
-            sc2_action = [self.direction_to_action(direction)]
-
-        else:
-            # sc2_action = [FUNCTIONS.select_army("select")]
-            marines_pos = self.xy_locations(player_relative == _PLAYER)
-            marine_pos = marines_pos[0]
-            sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
-
-        time_step = self.sc2_env.step(sc2_action)
-
-        self.obs = time_step[0]
-
-        obs = self.get_gym_observation()
-        reward = self.obs.reward
-        done = self.obs.last()
-        truncated = False
-        info = {}
-
-        return obs, reward, done, truncated, info
-
-
 class SC2ScreenEnv(SC2GymWrapper):
 
     def __init__(self):
@@ -500,7 +461,7 @@ class SC2ScreenEnv(SC2GymWrapper):
         self.selected_marine = None
 
         self.movement_distance = 5
-        self.move_deltas = self._define_move_deltas()
+        self.move_deltas = self.define_move_deltas()
 
     @property
     def name(self):
@@ -515,7 +476,7 @@ class SC2ScreenEnv(SC2GymWrapper):
         return spaces.Box(low=0, high=255, shape=(3, self.screen_size, self.screen_size), dtype=np.uint8)
 
     @staticmethod
-    def _define_move_deltas():
+    def define_move_deltas():
         SQRT2_INV = 1 / math.sqrt(2)
 
         move_deltas = [
@@ -608,7 +569,6 @@ class SC2ScreenEnv(SC2GymWrapper):
 
         return obs, reward, done, truncated, info
 
-
     def render(self, mode="human"):
         obs = self.get_gym_observation()
         frame = obs.transpose((1, 2, 0))
@@ -617,7 +577,7 @@ class SC2ScreenEnv(SC2GymWrapper):
                                     interpolation=cv2.INTER_NEAREST)
         frame_bgr = cv2.cvtColor(enlarged_frame, cv2.COLOR_RGB2BGR)
 
-        game_loop = self.obs.observation.game_loop
+        game_loop = self.obs.observation.game_loop[0]
         seconds = game_loop / 22.4
         minutes = int(seconds // 60)
         seconds = int(seconds % 60)
@@ -650,12 +610,194 @@ class SC2ScreenEnv(SC2GymWrapper):
         cv2.waitKey(1)
 
 
+class SC2MiddleInvisibleEnv(SC2GymWrapper):
+    def __init__(self):
+        super().__init__(24, 24)
+
+        self.selected_marine = None
+
+        self.GRID_SIZE = 48
+        self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+
+        self.movement_distance = 3
+        self.move_deltas = SC2ScreenEnv.define_move_deltas()
+
+    @property
+    def action_space(self):
+        return spaces.Discrete(len(self.move_deltas))
+
+    @property
+    def observation_space(self):
+        return spaces.Box(low=0, high=255, shape=(3, self.GRID_SIZE, self.GRID_SIZE), dtype=np.uint8)
+
+    @property
+    def name(self):
+        return f"middle_invisible_{self.GRID_SIZE}x{self.GRID_SIZE}"
+
+    def global_to_local_pos(self, x, y) -> tuple[int, int]:
+        selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+        local_x = x - (selected_marine_x - self.GRID_HALF_SIZE)
+        local_y = y - (selected_marine_y - self.GRID_HALF_SIZE)
+
+        return local_x, local_y
+
+    def is_in_local_grid(self, x, y) -> bool:
+        return 0 <= x < self.GRID_SIZE and 0 <= y < self.GRID_SIZE
+
+    def get_gym_observation(self):
+        selected_units = [unit for unit in self.obs.observation.feature_units if unit.is_selected]
+
+        if len(selected_units) > 0:
+            self.selected_marine = selected_units[0]
+
+        minimap_obs = np.full(shape=(3, self.GRID_SIZE, self.GRID_SIZE), fill_value=100, dtype=np.uint8)
+
+        mineral = [173, 216, 230]
+        selected = [50, 205, 50]
+        pathable = [255, 255, 255]
+        not_pathable = [255, 0, 50]
+
+        if self.selected_marine is not None:
+            mineral_shards = [unit for unit in self.obs.observation.feature_units if unit.unit_type == _MINERAL_SHARD]
+            minimap_pathable = self.obs.observation.feature_minimap["pathable"]
+
+            xy_pathable = self.xy_locations(minimap_pathable == 1)
+
+            for x, y in xy_pathable:
+                local_x, local_y = self.global_to_local_pos(x, y)
+                if self.is_in_local_grid(local_x, local_y):
+                    minimap_obs[:, local_y, local_x] = pathable
+
+            for mineral_shard in mineral_shards:
+                x, y = mineral_shard.x, mineral_shard.y
+                local_x, local_y = self.global_to_local_pos(x, y)
+                if self.is_in_local_grid(local_x, local_y):
+                    minimap_obs[:, local_y, local_x] = mineral
+
+            # selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+            # local_x, local_y = self.global_to_local_pos(selected_marine_x, selected_marine_y)
+            # minimap_obs[:, local_y, local_x] = selected
+
+        return minimap_obs
+
+    def reward_func(self) -> int:
+        reward = self.obs.reward
+        reward -= 0.01
+
+        return reward
+
+    def get_step_info(self) -> dict[str, Any]:
+        info = dict()
+        score = self.obs.observation['score_cumulative']['score']
+        info["score"] = score
+
+        return info
+
+    def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        player_relative = self.obs.observation.feature_screen.player_relative
+        available_actions = self.obs.observation.available_actions
+
+        if FUNCTIONS.Move_screen.id in available_actions:
+            dx, dy = self.move_deltas[action]
+            dx, dy = self.movement_distance * dx, self.movement_distance * dy
+            x, y = self.selected_marine.x + dx, self.selected_marine.y + dy
+
+            if self.in_screen_bounds(x, y):
+                sc2_action = [FUNCTIONS.Move_screen("now", (x, y))]
+
+            else:
+                sc2_action = [FUNCTIONS.no_op()]
+
+        else:
+            marines_pos = self.xy_locations(player_relative == _PLAYER)
+            marine_pos = marines_pos[0]
+            sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
+
+        time_step = self.sc2_env.step(sc2_action)
+
+        # Unpack the returned values
+        self.obs = time_step[0]
+        self.steps += 1
+
+        obs = self.get_gym_observation()
+        reward = self.reward_func()
+        done = self.obs.last()
+        truncated = False
+
+        info = self.get_step_info()
+
+        return obs, reward, done, truncated, info
+
+    def render(self, mode="human"):
+        obs = self.get_gym_observation()
+        frame = obs.transpose((1, 2, 0))
+        scale_factor = 20
+        enlarged_frame = cv2.resize(frame, (self.screen_size * scale_factor, self.screen_size * scale_factor),
+                                    interpolation=cv2.INTER_NEAREST)
+        frame_bgr = cv2.cvtColor(enlarged_frame, cv2.COLOR_RGB2BGR)
+
+        game_loop = self.obs.observation.game_loop[0]
+        seconds = game_loop / 22.4
+        minutes = int(seconds // 60)
+        seconds = int(seconds % 60)
+        time_str = f"{minutes:02d}:{seconds:02d}"
+
+        cv2.putText(
+            frame_bgr,
+            f"Time: {time_str}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA
+        )
+
+        score = self.obs.observation['score_cumulative']['score']
+        cv2.putText(
+            frame_bgr,
+            f"Score: {score}",
+            (250, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA
+        )
+
+        cv2.imshow("Minimap Observation", frame_bgr)
+        cv2.waitKey(1)
+
+
+class SC2MiddleVisibleEnv(SC2MiddleInvisibleEnv):
+    @property
+    def name(self):
+        return f"middle_invisible_{self.GRID_SIZE}x{self.GRID_SIZE}"
+
+    def get_gym_observation(self):
+        minimap_obs = super().get_gym_observation()
+
+        if self.selected_marine is not None:
+            selected = [50, 205, 50]
+
+            selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+            local_x, local_y = self.global_to_local_pos(selected_marine_x, selected_marine_y)
+            minimap_obs[:, local_y, local_x] = selected
+
+        return minimap_obs
+
+
 if __name__ == "__main__":
     test_env = None
 
     try:
-        test_env = SC2ScreenEnv()
-        check_env(test_env)
+        test_env = SC2MiddleVisibleEnv()
+        # check_env(test_env)
+
+        for _ in range(240):
+            random_action = test_env.action_space.sample()
+            test_env.step(random_action)
+            test_env.render()
 
     finally:
         if test_env is not None:
