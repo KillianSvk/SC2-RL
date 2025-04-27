@@ -1,10 +1,12 @@
 import os
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 from stable_baselines3 import DQN, PPO
 
 from utils import get_latest_model_path
 from sc2_environments import *
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 
 ENV = SC2MiddleInvisibleEnv

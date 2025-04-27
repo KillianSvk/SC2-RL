@@ -2,6 +2,8 @@ import math
 import os
 from typing import SupportsFloat, Any
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 import numpy as np
 from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
@@ -18,7 +20,6 @@ from pysc2.env.enums import Race
 from pysc2.lib import actions, features, units, portspicker
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 FLAGS = flags.FLAGS
 FLAGS(["run.py"])
 

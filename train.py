@@ -1,16 +1,14 @@
 import os
 import time
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.env_util import make_vec_env as sb3_make_vec_env
 
-from utils import AGENTS_FOLDER
-from utils import make_envs
+from utils import AGENTS_FOLDER, make_envs, get_latest_model_path
 from sc2_environments import *
-from agent_logging import CustomCallback
-
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+from agent_logging import CustomCheckpointCallback
 
 
 NUM_ENVS = 6
@@ -25,8 +23,8 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 15_000_000
-SAVING_FREQ = 250_000
+TIMESTEPS = 150_000
+SAVING_FREQ = 30_000
 
 
 def train(algorithm):
@@ -45,25 +43,14 @@ def train(algorithm):
         device="cuda",
     )
 
-    # model_path = "agents/DQN_screen_36x36_20-04_00-43/DQN_screen_36x36_30000k.zip"
-    # model = algorithm.load(
-    #     path=model_path,
-    #     env=env,
-    # )
-
     model_name = model.__class__.__name__
     agent_name = model_name + "_" + env_name
     agent_folder_name = agent_name + "_" + start_time
+    save_path = str(os.path.join(AGENTS_FOLDER, agent_folder_name))
 
-
-    # model_path_arr = model_path.split("/")
-    # agent_folder_name = model_path_arr[1]
-    # agent_folder_name_arr = agent_folder_name.split("_")
-    # agent_name = "_".join(agent_folder_name_arr[:-2])
-
-    callback = CustomCallback(
+    callback = CustomCheckpointCallback(
         save_freq=SAVING_FREQ,
-        save_path=os.path.join(AGENTS_FOLDER, agent_folder_name),
+        save_path=save_path,
         model_name=agent_name
     )
 
@@ -79,5 +66,42 @@ def train(algorithm):
     env.close()
 
 
+def continue_training(algorithm):
+    start_time = time.strftime('%d-%m_%H-%M')
+
+    env = make_envs(ENV, NUM_ENVS)
+
+    model_path = get_latest_model_path()
+    # model_path = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
+
+    model = algorithm.load(
+        path=model_path,
+        env=env,
+    )
+
+    head, agent_checkpoint = os.path.split(model_path)
+    agents_folder, agent_folder = os.path.split(head)
+    agent_checkpoint_arr = agent_checkpoint.split("_")
+    agent_name = "_".join(agent_checkpoint_arr[:-1])
+
+    callback = CustomCheckpointCallback(
+        save_freq=SAVING_FREQ,
+        save_path=os.path.join(AGENTS_FOLDER, agent_folder),
+        model_name=agent_name
+    )
+
+    model.learn(
+        total_timesteps=TIMESTEPS,
+        callback=callback,
+        log_interval=4,
+        tb_log_name=agent_folder,
+        progress_bar=True,
+        reset_num_timesteps=False
+    )
+
+    env.close()
+
+
 if __name__ == '__main__':
     train(ALGORITHM)
+    # continue_training(ALGORITHM)
