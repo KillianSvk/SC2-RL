@@ -12,8 +12,8 @@ from agent_logging import CustomCheckpointCallback
 
 
 NUM_ENVS = 6
-ENV = SC2MiddleInvisibleEnv
-ALGORITHM = DQN
+ENV = SC2DefeatZerglingsAndBanelingsEnv
+ALGORITHM = PPO
 POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
@@ -23,8 +23,8 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 150_000
-SAVING_FREQ = 30_000
+TIMESTEPS = 15_000_000
+SAVING_FREQ = 250_000
 
 
 def train(algorithm):
@@ -67,8 +67,6 @@ def train(algorithm):
 
 
 def continue_training(algorithm):
-    start_time = time.strftime('%d-%m_%H-%M')
-
     env = make_envs(ENV, NUM_ENVS)
 
     model_path = get_latest_model_path()

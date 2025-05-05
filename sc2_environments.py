@@ -6,24 +6,21 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import numpy as np
 from abc import ABC, abstractmethod
-import matplotlib.pyplot as plt
-from absl import logging, flags
-from enum import Enum
+from absl import flags
 
 import cv2
 import gymnasium as gym
 from gymnasium import spaces
-from gymnasium.core import ActType, ObsType
-from stable_baselines3.common.env_checker import check_env
+from gymnasium.core import ActType, ObsType, RenderFrame
 
 from pysc2.env.enums import Race
-from pysc2.lib import actions, features, units, portspicker
-from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent
+from pysc2.lib import actions, features, units
+from pysc2.lib.actions import FUNCTIONS
+from pysc2.env.sc2_env import SC2Env, Agent
 
 FLAGS = flags.FLAGS
 FLAGS(["run.py"])
 
-FUNCTIONS = actions.FUNCTIONS
 _PLAYER = 1
 _NEUTRAL = 3
 _MINERAL_SHARD = 1680
@@ -59,6 +56,8 @@ class SC2GymWrapper(gym.Env, ABC):
         reset(seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[ObsType, dict[str, Any]]:
             Resets the environment to its initial state and returns the initial observation and optional info.
 
+        render()
+
         close():
             Frees any resources used by the environment.
 
@@ -72,6 +71,7 @@ class SC2GymWrapper(gym.Env, ABC):
         This class is intended to be subclassed to create specific SC2 environments. Subclasses must implement the
         abstract properties and methods to define the action space, observation space, and environment behavior.
     """
+
     def __init__(self, screen_size, minimap_size):
         self.episodes = 0
         self.steps = 0
@@ -167,6 +167,19 @@ class SC2GymWrapper(gym.Env, ABC):
 
         self.sc2_env = sc2_env
         self.obs = sc2_env.reset()[0]
+
+    @abstractmethod
+    def render(self) -> RenderFrame | list[RenderFrame] | None:
+        """Renders the current state of the environment.
+
+        This method is responsible for visualizing the environment's state. The implementation
+        should provide a way to display the environment's current observation, which can be useful
+        for debugging or monitoring the agent's performance.
+
+        Returns:
+            RenderFrame | list[RenderFrame] | None: A rendered frame or a list of frames, or None if rendering is not implemented.
+        """
+        pass
 
     def in_screen_bounds(self, x, y) -> bool:
         return 0 <= x < self.screen_size and 0 <= y < self.screen_size
@@ -337,6 +350,10 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         # Info dictionary (optional debug info)
         info = self.get_step_info()
         obs = self.get_gym_observation()
+
+        function_id = np.random.choice(self.obs.observation.available_actions)
+        args = [[np.random.randint(0, size) for size in arg.sizes]
+                for arg in self.action_spec.functions[function_id].args]
 
         return obs, reward, done, truncated, info
 
@@ -633,7 +650,27 @@ class SC2MiddleInvisibleEnv(SC2GymWrapper):
 
     @property
     def name(self):
-        return f"middle_invisible_{self.GRID_SIZE}x{self.GRID_SIZE}"
+        return f"rooms_middle_invisible_{self.GRID_SIZE}x{self.GRID_SIZE}"
+
+    def init_sc2_env(self):
+        sc2_env = SC2Env(
+            map_name="CollectMineralShardsRooms",
+            players=[Agent(Race.terran)],
+            agent_interface_format=features.AgentInterfaceFormat(
+                feature_dimensions=features.Dimensions(screen=self.screen_size, minimap=self.minimap_size),
+                use_feature_units=True,
+                use_camera_position=True,
+                crop_to_playable_area=True,
+                action_space=actions.ActionSpace.FEATURES,
+            ),
+            game_steps_per_episode=0,
+            step_mul=8,
+            realtime=False,
+            visualize=False
+        )
+
+        self.sc2_env = sc2_env
+        self.obs = sc2_env.reset()[0]
 
     def global_to_local_pos(self, x, y) -> tuple[int, int]:
         selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
@@ -773,7 +810,7 @@ class SC2MiddleInvisibleEnv(SC2GymWrapper):
 class SC2MiddleVisibleEnv(SC2MiddleInvisibleEnv):
     @property
     def name(self):
-        return f"middle_invisible_{self.GRID_SIZE}x{self.GRID_SIZE}"
+        return f"rooms_middle_visible_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
     def get_gym_observation(self):
         minimap_obs = super().get_gym_observation()
@@ -788,11 +825,121 @@ class SC2MiddleVisibleEnv(SC2MiddleInvisibleEnv):
         return minimap_obs
 
 
+class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
+    def __init__(self):
+        super().__init__(screen_size=64, minimap_size=64)
+
+        # move, attack, single select,
+        # move = Function.ability(331, "Move_screen", cmd_screen, 3794), FUNCTIONS.Move_screen(3/queued [2]; 0/screen [84, 84])
+        # attack = Function.ability(12, "Attack_screen", cmd_screen, 3674), FUNCTIONS.Attack_screen(3/queued [2]; 0/screen [84, 84])
+        # single select = Function.ui_func(2, "select_point", select_point), FUNCTIONS.select_point(6/select_point_act [4]; 0/screen [84, 84])
+        # multi select = Function.ui_func(3, "select_rect", select_rect), FUNCTIONS.select_rect(7/select_add [2]; 0/screen [84, 84]; 2/screen2 [84, 84])
+        # select army = Function.ui_func(7, "select_army", select_army, lambda obs: obs.player_common.army_count > 0), FUNCTIONS.select_army(7/select_add [2])
+
+        self.agent_actions = [
+            FUNCTIONS.select_army,
+            FUNCTIONS.select_point,
+            FUNCTIONS.Move_screen,
+            FUNCTIONS.Attack_screen,
+        ]
+
+    @property
+    def action_space(self):
+        return spaces.MultiDiscrete([len(self.agent_actions), self.screen_size, self.screen_size])
+
+    @property
+    def observation_space(self):
+        return spaces.Box(0, 255, (4, self.screen_size, self.screen_size), np.uint8)
+
+    @property
+    def name(self):
+        return "defeat_zerg_bane"
+
+    def init_sc2_env(self):
+        sc2_env = SC2Env(
+            map_name="DefeatZerglingsAndBanelings",
+            players=[Agent(Race.terran)],
+            agent_interface_format=features.AgentInterfaceFormat(
+                feature_dimensions=features.Dimensions(screen=self.screen_size, minimap=self.minimap_size),
+                use_feature_units=True,
+                use_camera_position=True,
+                crop_to_playable_area=True,
+                action_space=actions.ActionSpace.FEATURES,
+            ),
+            game_steps_per_episode=0,
+            step_mul=8,
+            realtime=False,
+            visualize=False
+        )
+
+        self.sc2_env = sc2_env
+        self.obs = sc2_env.reset()[0]
+
+    def get_gym_observation(self):
+        feature_screen = self.obs.observation.feature_screen
+
+        # features.PlayerRelative
+        player_relative = feature_screen["player_relative"]
+        unit_type = feature_screen["unit_type"]
+        selected = feature_screen["selected"]
+        unit_hit_points = feature_screen["unit_hit_points"]
+
+        gym_obs = np.array([
+            player_relative,
+            unit_type,
+            selected,
+            unit_hit_points,
+        ])
+
+        return gym_obs
+
+    def reward_function(self) -> int:
+        reward = self.obs.reward
+
+        return reward
+
+    def preform_action(self, action) -> None:
+        action_type, screen_x, screen_y = action
+
+        sc2_action = [FUNCTIONS.no_op()]
+        agent_action = self.agent_actions[action_type]
+
+        if agent_action.id not in self.obs.observation.available_actions:
+            sc2_action = [FUNCTIONS.no_op()]
+
+        elif action_type == 0:
+            sc2_action = [agent_action("select")]
+
+        elif action_type == 1:
+            sc2_action = [agent_action("select", [screen_x, screen_y])]
+
+        elif action_type in (2, 3):
+            sc2_action = [agent_action("now", [screen_x, screen_y])]
+
+        time_step = self.sc2_env.step(sc2_action)
+        self.obs = time_step[0]
+
+    def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+
+        self.preform_action(action)
+
+        obs = self.get_gym_observation()
+        reward = self.reward_function()
+        done = self.obs.last()
+        truncated = False
+        info = {}
+
+        return obs, reward, done, truncated, info
+
+    def render(self) -> RenderFrame | list[RenderFrame] | None:
+        return None
+
+
 if __name__ == "__main__":
     test_env = None
 
     try:
-        test_env = SC2MiddleVisibleEnv()
+        test_env = SC2DefeatZerglingsAndBanelingsEnv()
         # check_env(test_env)
 
         for _ in range(240):

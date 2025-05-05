@@ -8,9 +8,8 @@ from utils import get_latest_model_path
 from sc2_environments import *
 
 
-
-ENV = SC2MiddleInvisibleEnv
-ALGORITHM = DQN
+ENV = SC2DefeatZerglingsAndBanelingsEnv
+ALGORITHM = PPO
 NUM_TESTING_EPISODES = 100
 
 
