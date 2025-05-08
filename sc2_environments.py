@@ -197,7 +197,7 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         super().__init__(32, 32)
 
         self.selected_marine = None
-        self.GRID_SIZE = 11
+        self.GRID_SIZE = 5
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
 
     @property
@@ -350,10 +350,6 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         # Info dictionary (optional debug info)
         info = self.get_step_info()
         obs = self.get_gym_observation()
-
-        function_id = np.random.choice(self.obs.observation.available_actions)
-        args = [[np.random.randint(0, size) for size in arg.sizes]
-                for arg in self.action_spec.functions[function_id].args]
 
         return obs, reward, done, truncated, info
 
@@ -868,7 +864,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
             ),
             game_steps_per_episode=0,
             step_mul=8,
-            realtime=False,
+            realtime=True,
             visualize=False
         )
 
@@ -919,6 +915,13 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
         time_step = self.sc2_env.step(sc2_action)
         self.obs = time_step[0]
 
+    def get_step_info(self) -> dict[str, Any]:
+        info = dict()
+
+        info["score"] = self.obs.observation['score_cumulative']['score']
+
+        return info
+
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
 
         self.preform_action(action)
@@ -927,7 +930,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
         reward = self.reward_function()
         done = self.obs.last()
         truncated = False
-        info = {}
+        info = self.get_step_info()
 
         return obs, reward, done, truncated, info
 

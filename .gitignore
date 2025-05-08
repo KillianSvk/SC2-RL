@@ -4,6 +4,8 @@ agents
 tensorboard
 tensorboard_pptx
 tensorboard_old
+/tensorboard_middle_invisible/
+/tensorboard_multiprocess/
 monitor
 optuna
 /optuna_cnn/

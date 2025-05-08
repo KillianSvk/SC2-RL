@@ -60,10 +60,25 @@ def main(argv):
         run_from_cmd(argv)
 
 
+# triton==3.2.0
+# nvidia-cublas-cu12==12.4.5.8
+# nvidia-cuda-cupti-cu12==12.4.127
+# nvidia-cuda-nvrtc-cu12==12.4.127
+# nvidia-cuda-runtime-cu12==12.4.127
+# nvidia-cudnn-cu12==9.1.0.70
+# nvidia-cufft-cu12==11.2.1.3
+# nvidia-curand-cu12==10.3.5.147
+# nvidia-cusolver-cu12==11.6.1.9
+# nvidia-cusparse-cu12==12.3.1.170
+# nvidia-cusparselt-cu12==0.6.2
+# nvidia-nccl-cu12==2.21.6
+# nvidia-nvjitlink-cu12==12.4.127
+# nvidia-nvtx-cu12==12.4.127
+
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
 # tensorboard --logdir=tensorboard
 if __name__ == "__main__":
-    # app.run(main)
+    app.run(main)
 
     # env = ENV()
     # model = ALGORITHM(
@@ -74,6 +89,3 @@ if __name__ == "__main__":
     #     device="cuda",
     # )
     # print(model.policy)
-
-    for map in maps:
-        print(map)

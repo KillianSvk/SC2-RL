@@ -5,6 +5,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import optuna
 import torch.nn as nn
+from optuna.study import Study, StudyDirection
 from optuna.visualization import plot_optimization_history, plot_parallel_coordinate, plot_param_importances, plot_slice, plot_contour
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
@@ -92,7 +93,7 @@ if __name__ == '__main__':
     # Do not prune before 1/3 of the max budget is used
     pruner = MedianPruner(n_startup_trials=N_STARTUP_TRIALS, n_warmup_steps=TIMESTEPS_PER_MODEL // 3)
 
-    study = optuna.create_study(sampler=sampler, pruner=pruner, direction="maximize")
+    study: Study = optuna.create_study(sampler=sampler, pruner=pruner, direction=StudyDirection.MAXIMIZE)
     study.optimize(optimize_dqn, n_trials=N_TRIALS)
 
     os.makedirs(OPTUNA_FOLDER, exist_ok=True)
