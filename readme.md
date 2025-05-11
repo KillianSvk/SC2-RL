@@ -13,5 +13,6 @@ donwloading dependencies from [requirements](requirements.txt)
 download
     [proto files linux](https://github.com/Blizzard/s2client-proto)
     [proto files windows](https://github.com/protocolbuffers/protobuf/releases/)
+
 Run protoc in s2clientprotocol on .proto files (protoc --proto_path=. --python_out=. s2clientprotocol/*.proto)
 replace the old files from your s2clientprotocol directory with newly genereted files
