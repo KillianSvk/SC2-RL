@@ -38,7 +38,6 @@ def train(algorithm):
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
         tensorboard_log="tensorboard",
-        device="cuda",
     )
 
     model_name = model.__class__.__name__

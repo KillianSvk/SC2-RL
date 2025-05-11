@@ -11,16 +11,15 @@ from sc2_environments import *
 ENV = SC2DefeatZerglingsAndBanelingsEnv
 ALGORITHM = PPO
 NUM_TESTING_EPISODES = 10
+MODEL_PATH = get_latest_model_path()
+# MODEL_PATH = "agents/DQN_screen_36x36_22-04_00-15/DQN_screen_36x36_45000k"
 
 
 def test(algorithm):
     env = ENV()
 
-    model_path = get_latest_model_path()
-    # model_path = "agents/DQN_screen_36x36_22-04_00-15/DQN_screen_36x36_45000k"
-
     model = algorithm.load(
-        path=model_path,
+        path=MODEL_PATH,
         env=env,
         device="cuda"
     )
