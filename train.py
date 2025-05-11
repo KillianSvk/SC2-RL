@@ -3,34 +3,32 @@ import time
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-from stable_baselines3 import DQN, PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv
-
+from stable_baselines3 import A2C, DDPG, DQN, PPO, SAC, TD3
 from utils import AGENTS_FOLDER, make_envs, get_latest_model_path
 from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
+ENV = SC2ScreenEnv
 NUM_ENVS = 6
-ENV = SC2MiddleInvisibleEnv
 ALGORITHM = DQN
-POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy
+POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
-    # normalize_images=False,
+    normalize_images=False,
 
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 150_000
-SAVING_FREQ = 30_000
+TIMESTEPS = 10_000_000
+SAVING_FREQ = 250_000
 
 
 def train(algorithm):
     start_time = time.strftime('%d-%m_%H-%M')
+
     env = make_envs(ENV, NUM_ENVS)
-    # env = make_envs(ENV, NUM_ENVS, start_time)
 
     env_names = env.get_attr("name")
     env_name = env_names[0]
@@ -67,8 +65,6 @@ def train(algorithm):
 
 
 def continue_training(algorithm):
-    start_time = time.strftime('%d-%m_%H-%M')
-
     env = make_envs(ENV, NUM_ENVS)
 
     model_path = get_latest_model_path()

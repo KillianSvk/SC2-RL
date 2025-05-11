@@ -1,15 +1,15 @@
 import numpy as np
 import pysc2.maps
-from pysc2.agents import base_agent
+from pysc2.agents.base_agent import BaseAgent
 from pysc2.env import sc2_env
 from pysc2.lib import actions, features, units
+from pysc2.lib.actions import FUNCTIONS, FUNCTIONS_AVAILABLE, FUNCTION_TYPES
 from absl import app
 
 _PLAYER_SELF = features.PlayerRelative.SELF
 _PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL  # beacon/minerals
 _PLAYER_ENEMY = features.PlayerRelative.ENEMY
 
-FUNCTIONS = actions.FUNCTIONS
 RAW_FUNCTIONS = actions.RAW_FUNCTIONS
 TYPES = actions.TYPES
 ABILITY_IDS = actions.ABILITY_IDS
@@ -21,7 +21,7 @@ def _xy_locs(mask):
     return list(zip(x, y))
 
 
-class HardcodedCollectMineralShards(base_agent.BaseAgent):
+class HardcodedCollectMineralShards(BaseAgent):
 
     def step(self, obs):
         if FUNCTIONS.Move_screen.id in obs.observation.available_actions:
@@ -38,10 +38,9 @@ class HardcodedCollectMineralShards(base_agent.BaseAgent):
         return FUNCTIONS.select_army("select")
 
 
-class HardcodedFindAndDefeatZerglings(base_agent.BaseAgent):
+class HardcodedFindAndDefeatZerglings(BaseAgent):
 
     def step(self, obs):
-
         observation = obs.observation
 
         # for action in observation.available_actions:
@@ -62,23 +61,76 @@ class HardcodedFindAndDefeatZerglings(base_agent.BaseAgent):
         return FUNCTIONS.no_op()
 
 
+class RandomAgent(BaseAgent):
+    def step(self, obs):
+        super(RandomAgent, self).step(obs)
+
+        function_id = np.random.choice(obs.observation.available_actions)
+        args = [[np.random.randint(0, size) for size in arg.sizes]
+                for arg in self.action_spec.functions[function_id].args]
+
+        return actions.FunctionCall(function_id, args)
+
+
+class TestAgent(BaseAgent):
+    def __init__(self):
+        super().__init__()
+
+        self.x, self.y = 0, 0
+        self.x_len, self.y_len = 0, 0
+
+    def setup(self, obs_spec, action_spec):
+        super().setup(obs_spec, action_spec)
+
+        obs_spec = self.obs_spec
+        feature_screen = obs_spec["feature_screen"]
+        self.y_len = feature_screen[1]
+        self.x_len = feature_screen[2]
+
+    def next_pos(self):
+        self.x += 1
+        if self.x >= self.x_len:
+            self.x = 0
+            self.y += 1
+
+            if self.y >= self.y_len:
+                self.y = 0
+
+    def step(self, obs):
+        available_actions = obs.observation.available_actions
+        print(available_actions)
+
+        func = FUNCTIONS
+        func_avab = FUNCTIONS_AVAILABLE
+        func_types = FUNCTION_TYPES
+        func_raw = RAW_FUNCTIONS
+
+        step_action = FUNCTIONS.select_army("select")
+
+        if FUNCTIONS.Move_screen.id in available_actions:
+            step_action = FUNCTIONS.Move_screen("now", [self.x, self.y])
+            self.next_pos()
+
+        return step_action
+
+
 def main(argv):
-    agent = HardcodedFindAndDefeatZerglings()
+    agent = TestAgent()
 
     # put while cycle here for infinity games
 
     with sc2_env.SC2Env(
-            map_name="CollectMineralShardsRooms",
+            map_name="DefeatZerglingsAndBanelings",
             players=[sc2_env.Agent(sc2_env.Race.zerg)],
             agent_interface_format=features.AgentInterfaceFormat(
-                feature_dimensions=features.Dimensions(screen=64, minimap=64),
+                feature_dimensions=features.Dimensions(screen=32, minimap=32),
                 use_camera_position=True,
                 use_feature_units=True),
             step_mul=8,
             realtime=True,
             visualize=True) as env:
 
-        agent.setup(env.observation_spec(), env.action_spec())
+        agent.setup(env.observation_spec()[0], env.action_spec()[0])
 
         time_steps = env.reset()
         agent.reset()

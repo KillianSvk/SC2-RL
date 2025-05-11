@@ -54,7 +54,7 @@ KILL_UNIT_REWARD = 0.2
 KILL_BUILDING_REWARD = 0.5
 
 
-# Stolen from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
+# Code from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
 class QLearningTable:
     def __init__(self, actions, learning_rate=0.01, reward_decay=0.9, e_greedy=0.9):
         self.actions = actions  # a list
