@@ -94,9 +94,9 @@ tensorflow==2.19.0
 tensorflow-io-gcs-filesystem==0.31.0
 termcolor==2.5.0
 threadpoolctl==3.6.0
-torch==2.6.0
-torchaudio==2.6.0
-torchvision==0.21.0
+torch==2.6.0+cu126
+torchaudio==2.6.0+cu126
+torchvision==0.21.0+cu126
 tqdm==4.67.1
 typing_extensions==4.13.0
 tzdata==2025.2

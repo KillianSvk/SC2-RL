@@ -77,3 +77,5 @@ class CustomCheckpointCallback(BaseCallback):
 
     def _on_training_end(self) -> None:
         super()._on_training_end()
+
+        self.save_model()

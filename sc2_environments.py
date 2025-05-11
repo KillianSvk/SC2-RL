@@ -101,30 +101,31 @@ class SC2GymWrapper(gym.Env, ABC):
     @abstractmethod
     def action_space(self):
         """Defines the Gym-compatible action space."""
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def observation_space(self):
         """Defines the Gym-compatible observation space."""
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def name(self):
         """Name of implementation and a name under which it will be saved."""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_gym_observation(self):
         """Returns an observation from pysc2 environment in Gym-compatible space"""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        pass
+        raise NotImplementedError()
 
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None, ) -> tuple[ObsType, dict[str, Any]]:
+        self.steps = 0
         self.episodes += 1
         self.obs = self.sc2_env.reset()[0]
 
@@ -197,7 +198,7 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         super().__init__(32, 32)
 
         self.selected_marine = None
-        self.GRID_SIZE = 5
+        self.GRID_SIZE = 11
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
 
     @property

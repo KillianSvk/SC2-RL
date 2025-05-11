@@ -24,6 +24,7 @@ class CustomSmallerCNN(BaseFeaturesExtractor):
     def forward(self, x):
         return self.linear(self.cnn(x))
 
+
 class CustomizableCNN(BaseFeaturesExtractor):
     def __init__(
         self,

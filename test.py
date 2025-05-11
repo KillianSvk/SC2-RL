@@ -29,6 +29,7 @@ def test(algorithm):
 
     obs, info = env.reset()
     total_reward = 0
+    total_score = 0
     episode_reward = 0
     best_score = 0
     episodes = 0
@@ -46,13 +47,15 @@ def test(algorithm):
             episodes += 1
 
             episode_score = info["score"]
+            total_score += episode_score
 
             if episode_score > best_score:
                 best_score = episode_score
 
             print(f"Episode reward: {episode_reward} Episode score: {episode_score}")
-            print(f"Average episode reward: {total_reward / episodes:.2f} after {episodes} episodes")
-            print(f"Best score: {best_score}")
+            print(f"Average episode reward: {total_reward / episodes:.2f}")
+            print(f"Average episode score: {total_score / episodes:.2f}")
+            print(f"Best score: {best_score} out of {episodes} episodes")
             print("-------------------------------------")
 
             obs, info = env.reset()
