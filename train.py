@@ -9,9 +9,9 @@ from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
-ENV = SC2ScreenEnv
+ENV = SC2ScreenBoxEnv
 NUM_ENVS = 6
-ALGORITHM = DQN
+ALGORITHM = SAC
 POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
@@ -37,7 +37,7 @@ def train(algorithm):
         env=env,
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
-        tensorboard_log="tensorboard",
+        tensorboard_log="tensorboard_compare_alg",
     )
 
     model_name = model.__class__.__name__

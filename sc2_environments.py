@@ -2,6 +2,8 @@ import math
 import os
 from typing import SupportsFloat, Any
 
+from stable_baselines3.common.env_checker import check_env
+
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import numpy as np
@@ -625,6 +627,55 @@ class SC2ScreenEnv(SC2GymWrapper):
         cv2.waitKey(1)
 
 
+class SC2ScreenBoxEnv(SC2ScreenEnv):
+
+    @property
+    def name(self):
+        return f"screen_box_{self.screen_size}x{self.screen_size}"
+
+    @property
+    def action_space(self):
+        return spaces.Box(low=-1.0, high=1.0, shape=(2,))
+
+    def step(self, action):
+        player_relative = self.obs.observation.feature_screen.player_relative
+        available_actions = self.obs.observation.available_actions
+
+        if FUNCTIONS.Move_screen.id in available_actions:
+            dx, dy = action
+            dx, dy = int(round(dx)), int(round(dy))
+            dx, dy = self.movement_distance * dx, self.movement_distance * dy
+            x, y = self.selected_marine.x + dx, self.selected_marine.y + dy
+
+            if self.in_screen_bounds(x, y):
+                sc2_action = [FUNCTIONS.Move_screen("now", (x, y))]
+
+            else:
+                sc2_action = [FUNCTIONS.no_op()]
+
+        else:
+            marines_pos = self.xy_locations(player_relative == _PLAYER)
+            marine_pos = marines_pos[0]
+            sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
+
+        time_step = self.sc2_env.step(sc2_action)
+
+        # Unpack the returned values
+        self.obs = time_step[0]
+        self.steps += 1
+
+        obs = self.get_gym_observation()
+        reward = self.reward_func()
+        done = self.obs.last()
+        truncated = False
+
+        info = {}
+        score = self.obs.observation['score_cumulative']['score']
+        info["score"] = score
+
+        return obs, reward, done, truncated, info
+
+
 class SC2MiddleInvisibleEnv(SC2GymWrapper):
     def __init__(self):
         super().__init__(24, 24)
@@ -865,7 +916,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
             ),
             game_steps_per_episode=0,
             step_mul=8,
-            realtime=True,
+            realtime=False,
             visualize=False
         )
 
@@ -943,7 +994,7 @@ if __name__ == "__main__":
     test_env = None
 
     try:
-        test_env = SC2DefeatZerglingsAndBanelingsEnv()
+        test_env = SC2ScreenBoxEnv()
         # check_env(test_env)
 
         for _ in range(240):
