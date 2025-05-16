@@ -4,6 +4,8 @@ Download Starcraft II: \
 &nbsp;&nbsp;&nbsp;&nbsp; Windows: https://starcraft2.blizzard.com/en-us/ \
 &nbsp;&nbsp;&nbsp;&nbsp; Linux: https://github.com/Blizzard/s2client-proto#downloads (recommended version is 4.10) 
 
+Download minigame maps and maps which you wish to use from [PySC2 github](https://github.com/google-deepmind/pysc2?tab=readme-ov-file#get-the-maps)
+
 Set enviroment variable SC2PATH on your OS to your Starcraft II directory
 
 Recommended python version 3.10 \
