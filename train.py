@@ -17,7 +17,6 @@ POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
     # normalize_images=False,
-
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
