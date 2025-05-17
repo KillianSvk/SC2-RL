@@ -496,15 +496,28 @@ class SC2ScreenEnv(SC2GymWrapper):
     def define_move_deltas():
         SQRT2_INV = 1 / math.sqrt(2)
 
+        # move_deltas = [
+        #     (0, 0),
+        #     (0, -1),  # up
+        #     (0, 1),  # down
+        #     (-1, 0),  # left
+        #     (1, 0),  # right
+        #     (-SQRT2_INV, -SQRT2_INV),  # up-left
+        #     (SQRT2_INV, -SQRT2_INV),  # up-right
+        #     (-SQRT2_INV, SQRT2_INV),  # down-left
+        #     (SQRT2_INV, SQRT2_INV),  # down-right
+        # ]
+
         move_deltas = [
+            (0, 0),
             (0, -1),  # up
             (0, 1),  # down
             (-1, 0),  # left
             (1, 0),  # right
-            (-SQRT2_INV, -SQRT2_INV),  # up-left
-            (SQRT2_INV, -SQRT2_INV),  # up-right
-            (-SQRT2_INV, SQRT2_INV),  # down-left
-            (SQRT2_INV, SQRT2_INV),  # down-right
+            (-1, -1),  # up-left
+            (1, -1),  # up-right
+            (-1, 1),  # down-left
+            (1, 1),  # down-right
         ]
 
         return move_deltas

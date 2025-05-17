@@ -9,9 +9,9 @@ from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
-ENV = SC2ScreenBoxEnv
+ENV = SC2ScreenEnv
 NUM_ENVS = 6
-ALGORITHM = SAC
+ALGORITHM = A2C
 POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
@@ -95,7 +95,6 @@ def continue_training(algorithm):
     )
 
     env.close()
-
 
 if __name__ == '__main__':
     train(ALGORITHM)
