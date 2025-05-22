@@ -216,10 +216,9 @@ class SC2LocalObservationEnv(SC2GymWrapper):
 
     @property
     def action_space(self):
-        actions_num = (self.GRID_SIZE * self.GRID_SIZE)
-        # actions_num = (len(self.obs.observation.available_actions))  # Number of possible actions in PySC2
+        actions_count = (self.GRID_SIZE * self.GRID_SIZE)
 
-        action_space = spaces.Discrete(actions_num)
+        action_space = spaces.Discrete(actions_count)
 
         return action_space
 
@@ -904,6 +903,8 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
             FUNCTIONS.Attack_screen,
         ]
 
+        self.previous_units = list()
+
     @property
     def action_space(self):
         return spaces.MultiDiscrete([len(self.agent_actions), self.screen_size, self.screen_size])
@@ -957,6 +958,17 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
     def reward_function(self) -> int:
         reward = self.obs.reward
 
+        # count banelings
+        current_units = self.obs.observation.feature_units
+        current_baneling_count = len([unit for unit in current_units if unit.unit_type == units.Zerg.Baneling])
+        previous_baneling_count = len([unit for unit in self.previous_units if unit.unit_type == units.Zerg.Baneling])
+
+        killed_banelings = previous_baneling_count - current_baneling_count
+        if killed_banelings > 0:
+            reward += killed_banelings * 5
+
+        self.previous_units = current_units
+
         return reward
 
     def preform_action(self, action) -> None:
@@ -988,7 +1000,6 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
         return info
 
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-
         self.preform_action(action)
 
         obs = self.get_gym_observation()
@@ -1002,18 +1013,29 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
     def render(self) -> RenderFrame | list[RenderFrame] | None:
         return None
 
+    def get_game_time(self):
+        # Get the current game loop
+        game_loop = self.obs.observation.game_loop[0]
+
+        # Convert game loops to seconds (22.4 loops per second)
+        seconds = game_loop / 22.4
+        minutes = int(seconds // 60)
+        seconds = int(seconds % 60)
+
+        return f"{minutes:02d}:{seconds:02d}"
+
 
 if __name__ == "__main__":
     test_env = None
 
     try:
-        test_env = SC2ScreenBoxEnv()
+        test_env = SC2DefeatZerglingsAndBanelingsEnv()
         # check_env(test_env)
 
         for _ in range(240):
             random_action = test_env.action_space.sample()
             test_env.step(random_action)
-            test_env.render()
+            # test_env.render()
 
     finally:
         if test_env is not None:

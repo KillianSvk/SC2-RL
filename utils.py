@@ -9,6 +9,7 @@ from stable_baselines3.common.env_util import make_vec_env as sb3_make_vec_env
 
 MONITOR_FOLDER = "monitor"
 AGENTS_FOLDER = 'agents'
+TEST_RESULTS_FOLDER = 'test_results'
 
 
 def make_monitored_env(env_class, start_time=None, env_id=0):

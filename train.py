@@ -9,20 +9,22 @@ from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
-ENV = SC2ScreenEnv
+ENV = SC2DefeatZerglingsAndBanelingsEnv
 NUM_ENVS = 6
-ALGORITHM = A2C
+ALGORITHM = PPO
 POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
-    normalize_images=False,
-
+    # normalize_images=False,
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
 TIMESTEPS = 10_000_000
 SAVING_FREQ = 250_000
+
+CONTINUE_MODEL_PATH = get_latest_model_path()
+# MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
 
 
 def train(algorithm):
@@ -37,7 +39,7 @@ def train(algorithm):
         env=env,
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
-        tensorboard_log="tensorboard_compare_alg",
+        tensorboard_log="tensorboard",
     )
 
     model_name = model.__class__.__name__
@@ -66,15 +68,12 @@ def train(algorithm):
 def continue_training(algorithm):
     env = make_envs(ENV, NUM_ENVS)
 
-    model_path = get_latest_model_path()
-    # model_path = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
-
     model = algorithm.load(
-        path=model_path,
+        path=CONTINUE_MODEL_PATH,
         env=env,
     )
 
-    head, agent_checkpoint = os.path.split(model_path)
+    head, agent_checkpoint = os.path.split(CONTINUE_MODEL_PATH)
     agents_folder, agent_folder = os.path.split(head)
     agent_checkpoint_arr = agent_checkpoint.split("_")
     agent_name = "_".join(agent_checkpoint_arr[:-1])
