@@ -59,21 +59,29 @@ def make_envs(env_class, num_envs):
 
 
 def get_latest_model_path():
-    existing_agents = sorted(
-        os.listdir(AGENTS_FOLDER),
-        key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
-        reverse=True
-    )
+    try:
+        existing_agents = sorted(
+            os.listdir(AGENTS_FOLDER),
+            key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
+            reverse=True
+        )
 
-    last_agent = existing_agents[0]
-    agent_path = os.path.join(AGENTS_FOLDER, last_agent)
-    agent_models = sorted(
-        os.listdir(agent_path),
-        key=lambda x: os.path.getctime(os.path.join(agent_path, x)),
-        reverse=True
-    )
+        last_agent = existing_agents[0]
+        agent_path = os.path.join(AGENTS_FOLDER, last_agent)
+        agent_models = sorted(
+            os.listdir(agent_path),
+            key=lambda x: os.path.getctime(os.path.join(agent_path, x)),
+            reverse=True
+        )
 
-    last_agent_model = agent_models[0]
-    last_agent_model = last_agent_model.split(".")[0]
+        last_agent_model = agent_models[0]
+        last_agent_model = last_agent_model.split(".")[0]
 
-    return os.path.join(AGENTS_FOLDER, last_agent, last_agent_model)
+        return os.path.join(AGENTS_FOLDER, last_agent, last_agent_model)
+
+    except IndexError as e:
+        print("Failed loading latest model")
+
+        return False
+
+

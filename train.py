@@ -9,10 +9,10 @@ from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
-ENV = SC2DefeatZerglingsAndBanelingsEnv
+ENV = SC2LocalObservationEnv
 NUM_ENVS = 6
-ALGORITHM = PPO
-POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
+ALGORITHM = DQN
+POLICY = "MlpPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
@@ -20,11 +20,11 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 10_000_000
+TIMESTEPS = 1_000_000
 SAVING_FREQ = 250_000
 
 CONTINUE_MODEL_PATH = get_latest_model_path()
-# MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
+# CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
 
 
 def train(algorithm):
@@ -39,7 +39,7 @@ def train(algorithm):
         env=env,
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
-        tensorboard_log="tensorboard",
+        tensorboard_log="tensorboard_collect_minerals",
     )
 
     model_name = model.__class__.__name__
@@ -59,7 +59,7 @@ def train(algorithm):
         log_interval=4,
         tb_log_name=agent_folder_name,
         progress_bar=True,
-        reset_num_timesteps=False
+        reset_num_timesteps=False,
     )
 
     env.close()
@@ -95,6 +95,12 @@ def continue_training(algorithm):
 
     env.close()
 
+
 if __name__ == '__main__':
-    train(ALGORITHM)
+    # train(ALGORITHM)
     # continue_training(ALGORITHM)
+
+    for _env in [SC2LocalObservation5Env, SC2LocalObservation11Env, SC2LocalObservation17Env, SC2LocalObservationFlattenedEnv]:
+        ENV = _env
+        for i in range(5):
+            train(ALGORITHM)

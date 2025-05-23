@@ -76,42 +76,14 @@ class TestAgent(BaseAgent):
     def __init__(self):
         super().__init__()
 
-        self.x, self.y = 0, 0
-        self.x_len, self.y_len = 0, 0
-
-    def setup(self, obs_spec, action_spec):
-        super().setup(obs_spec, action_spec)
-
-        obs_spec = self.obs_spec
-        feature_screen = obs_spec["feature_screen"]
-        self.y_len = feature_screen[1]
-        self.x_len = feature_screen[2]
-
-    def next_pos(self):
-        self.x += 1
-        if self.x >= self.x_len:
-            self.x = 0
-            self.y += 1
-
-            if self.y >= self.y_len:
-                self.y = 0
-
     def step(self, obs):
         available_actions = obs.observation.available_actions
-        print(available_actions)
+        # print(available_actions)
 
-        func = FUNCTIONS
-        func_avab = FUNCTIONS_AVAILABLE
-        func_types = FUNCTION_TYPES
-        func_raw = RAW_FUNCTIONS
+        production_queue = obs.observation['production_queue']
+        screen_active = obs.observation.feature_screen['active']
 
-        step_action = FUNCTIONS.select_army("select")
-
-        if FUNCTIONS.Move_screen.id in available_actions:
-            step_action = FUNCTIONS.Move_screen("now", [self.x, self.y])
-            self.next_pos()
-
-        return step_action
+        return FUNCTIONS.no_op()
 
 
 def main(argv):
@@ -120,7 +92,7 @@ def main(argv):
     # put while cycle here for infinity games
 
     with sc2_env.SC2Env(
-            map_name="DefeatZerglingsAndBanelings",
+            map_name="BuildMarines",
             players=[sc2_env.Agent(sc2_env.Race.zerg)],
             agent_interface_format=features.AgentInterfaceFormat(
                 feature_dimensions=features.Dimensions(screen=32, minimap=32),

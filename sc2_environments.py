@@ -196,11 +196,11 @@ class SC2GymWrapper(gym.Env, ABC):
 
 class SC2LocalObservationEnv(SC2GymWrapper):
 
-    def __init__(self):
+    def __init__(self, grid_size):
         super().__init__(32, 32)
 
         self.selected_marine = None
-        self.GRID_SIZE = 11
+        self.GRID_SIZE = grid_size
         self.GRID_HALF_SIZE = self.GRID_SIZE // 2
 
     @property
@@ -368,6 +368,24 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         pass
 
 
+class SC2LocalObservation5Env(SC2LocalObservationEnv):
+    def __init__(self):
+        grid_size = 5
+        super().__init__(grid_size)
+
+
+class SC2LocalObservation11Env(SC2LocalObservationEnv):
+    def __init__(self):
+        grid_size = 11
+        super().__init__(grid_size)
+
+
+class SC2LocalObservation17Env(SC2LocalObservationEnv):
+    def __init__(self):
+        grid_size = 17
+        super().__init__(grid_size)
+
+
 class SC2LocalRoomsEnv(SC2LocalObservationEnv):
 
     @property
@@ -443,16 +461,14 @@ class SC2LocalRoomsEnv(SC2LocalObservationEnv):
         return np.array([pathable_grid, mineral_grid])
 
 
-class SC2FlattenEnv(SC2LocalObservationEnv):
+class SC2LocalObservationFlattenedEnv(SC2LocalObservationEnv):
     def __init__(self):
-        super(SC2FlattenEnv, self).__init__()
-
-        self.GRID_SIZE = 11
-        self.GRID_HALF_SIZE = self.GRID_SIZE // 2
+        grid_size = 11
+        super().__init__(grid_size)
 
     @property
     def name(self):
-        return f"flatten_obs_env_{self.GRID_SIZE}x{self.GRID_SIZE}"
+        return f"local_grid_flattened_env_{self.GRID_SIZE}x{self.GRID_SIZE}"
 
     @property
     def action_space(self):
@@ -463,7 +479,7 @@ class SC2FlattenEnv(SC2LocalObservationEnv):
         return spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE * self.GRID_SIZE,), dtype=np.int8)
 
     def get_gym_observation(self):
-        gym_obs = super(SC2FlattenEnv, self).get_gym_observation()
+        gym_obs = super(SC2LocalObservationFlattenedEnv, self).get_gym_observation()
         flatten_gym_obs = gym_obs.flatten()
 
         return flatten_gym_obs
@@ -971,7 +987,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
 
         return reward
 
-    def preform_action(self, action) -> None:
+    def perform_action(self, action) -> None:
         action_type, screen_x, screen_y = action
 
         sc2_action = [FUNCTIONS.no_op()]
@@ -1000,7 +1016,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
         return info
 
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        self.preform_action(action)
+        self.perform_action(action)
 
         obs = self.get_gym_observation()
         reward = self.reward_function()
@@ -1025,17 +1041,157 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
         return f"{minutes:02d}:{seconds:02d}"
 
 
+class SC2BuildMarinesEnv(SC2GymWrapper):
+    def __init__(self):
+        screen_size, minimap_size = 64, 64
+        super().__init__(screen_size, minimap_size)
+
+        # select_point = Function.ui_func(2, "select_point", select_point),  FUNCTIONS.select_point(select_point_act [4]; screen [64, 64])
+        # select_idle_worker = Function.ui_func(6, "select_idle_worker", select_idle_worker, lambda obs: obs.player_common.idle_worker_count > 0), FUNCTIONS.select_idle_worker(select_worker [4])
+        # train_SCV = Function.ability(490, "Train_SCV_quick", cmd_quick, 524), FUNCTIONS.Train_SCV_quick(queued [2])
+        # train_Marine = Function.ability(477, "Train_Marine_quick", cmd_quick, 560),  FUNCTIONS.Train_Marine_quick(queued [2])
+        # build_SupplyDepot = Function.ability(91, "Build_SupplyDepot_screen", cmd_screen, 319), FUNCTIONS.Build_SupplyDepot_screen(queued [2], screen [64, 64])
+        # build_Barracks = Function.ability(42, "Build_Barracks_screen", cmd_screen, 321), FUNCTIONS.Build_Barracks_screen(queued [2], screen [64, 64])
+
+        self.agent_actions = [
+            FUNCTIONS.select_point,
+            FUNCTIONS.select_idle_worker,
+            FUNCTIONS.Train_SCV_quick,
+            FUNCTIONS.Train_Marine_quick,
+            FUNCTIONS.Build_SupplyDepot_screen,
+            FUNCTIONS.Build_Barracks_screen
+        ]
+
+    def init_sc2_env(self):
+        sc2_env = SC2Env(
+            map_name="BuildMarines",
+            players=[Agent(Race.terran)],
+            agent_interface_format=features.AgentInterfaceFormat(
+                feature_dimensions=features.Dimensions(screen=self.screen_size, minimap=self.minimap_size),
+                use_feature_units=True,
+                use_camera_position=True,
+                crop_to_playable_area=True,
+                action_space=actions.ActionSpace.FEATURES,
+            ),
+            game_steps_per_episode=0,
+            step_mul=8,
+            realtime=False,
+            visualize=False
+        )
+
+        self.sc2_env = sc2_env
+        self.obs = sc2_env.reset()[0]
+
+    @property
+    def action_space(self):
+        return spaces.MultiDiscrete([len(self.agent_actions), self.screen_size, self.screen_size])
+
+    @property
+    def observation_space(self):
+        observation_space = spaces.Dict({
+            "player": spaces.MultiDiscrete([np.iinfo(np.int32).max, 200 + 1, 200 + 1]),
+            "screen": spaces.Box(0, 255, (5, self.screen_size, self.screen_size), np.uint8),
+        })
+
+        return observation_space
+
+    @property
+    def name(self):
+        return f"build_marines"
+
+    def get_gym_observation(self):
+        player_minerals = self.obs.observation.player['minerals']
+        player_food_used = self.obs.observation.player['food_used']
+        player_food_cap = self.obs.observation.player['food_cap']
+        player = np.array([player_minerals, player_food_used, player_food_cap])
+
+        screen_player_id = self.obs.observation.feature_screen['player_id']
+        screen_unit_type = self.obs.observation.feature_screen['unit_type']
+        screen_selected = self.obs.observation.feature_screen['selected']
+        screen_build_progress = self.obs.observation.feature_screen['build_progress']
+        screen_pathable = self.obs.observation.feature_screen['pathable']
+
+        mineral_field = 255
+        screen_unit_type[screen_unit_type == units.Neutral.MineralField] = mineral_field
+        screen_unit_type[screen_unit_type == units.Neutral.MineralField750] = mineral_field
+        screen_unit_type[screen_unit_type == units.Neutral.MineralField450] = mineral_field
+
+        screen = np.array([
+            screen_player_id,
+            screen_unit_type,
+            screen_selected,
+            screen_build_progress,
+            screen_pathable
+        ], dtype=np.uint8)
+
+        gym_obs = dict()
+        gym_obs["player"] = player
+        gym_obs["screen"] = screen
+
+        return gym_obs
+
+    def perform_action(self, action):
+        action_type, screen_x, screen_y = action
+
+        sc2_action = [FUNCTIONS.no_op()]
+        agent_action = self.agent_actions[action_type]
+
+        if agent_action.id not in self.obs.observation.available_actions:
+            sc2_action = [FUNCTIONS.no_op()]
+
+        elif action_type == 0:
+            sc2_action = [agent_action("select", [screen_x, screen_y])]
+
+        elif action_type == 1:
+            sc2_action = [agent_action("select")]
+
+        elif action_type in (2, 3):
+            sc2_action = [agent_action("now")]
+
+        elif action_type in (4, 5):
+            sc2_action = [agent_action("now", [screen_x, screen_y])]
+
+        time_step = self.sc2_env.step(sc2_action)
+        self.obs = time_step[0]
+
+    def reward_function(self):
+        reward = self.obs.reward
+
+        return reward
+
+    def get_step_info(self):
+        info = dict()
+
+        info["score"] = self.obs.observation['score_cumulative']['score']
+
+        return info
+
+    def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        self.perform_action(action)
+
+        obs = self.get_gym_observation()
+        reward = self.reward_function()
+        done = self.obs.last()
+        truncated = False
+        info = self.get_step_info()
+
+        return obs, reward, done, truncated, info
+
+    def render(self) -> RenderFrame | list[RenderFrame] | None:
+        pass
+
+
 if __name__ == "__main__":
     test_env = None
 
     try:
-        test_env = SC2DefeatZerglingsAndBanelingsEnv()
-        # check_env(test_env)
+        test_env = SC2BuildMarinesEnv()
+        check_env(test_env)
 
-        for _ in range(240):
-            random_action = test_env.action_space.sample()
-            test_env.step(random_action)
-            # test_env.render()
+        # for _ in range(240):
+        #     random_action = test_env.action_space.sample()
+        #     test_env.step(random_action)
+        #     # test_env.render()
 
     finally:
         if test_env is not None:
