@@ -1,4 +1,5 @@
 import os
+import time
 
 import pysc2.bin.map_list
 from absl import flags, app
@@ -8,6 +9,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 from stable_baselines3 import DQN, PPO
 
 from sc2_environments import *
+from utils import make_vec_env_sequential
 from train import train
 from test import test
 
@@ -90,10 +92,15 @@ if __name__ == "__main__":
     # )
     # print(model.policy)
 
-    from tbparse import SummaryReader
+    # from tbparse import SummaryReader
+    #
+    # reader = SummaryReader("tensorboard_multiprocess")
+    # df = reader.scalars  # This gives you a DataFrame
+    #
+    # # Save to CSV
+    # df.to_csv("tensorboard_multiprocess_data_indexed.csv")
 
-    reader = SummaryReader("tensorboard_multiprocess")
-    df = reader.scalars  # This gives you a DataFrame
-
-    # Save to CSV
-    df.to_csv("tensorboard_multiprocess_data_indexed.csv")
+    for i in range(10):
+        env = make_vec_env_sequential(SC2LocalObservationEnv, 12)
+        env.close()
+        time.sleep(1)

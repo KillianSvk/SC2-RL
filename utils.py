@@ -1,4 +1,6 @@
 import os
+import random
+
 import psutil
 import time
 
@@ -41,7 +43,28 @@ def env_error_cleanup():
             proc.kill()
 
 
-def make_envs(env_class, num_envs):
+def make_env(env_class):
+    def _init():
+        time.sleep(2)
+        return env_class()
+
+    return _init
+
+
+def make_vec_env_sequential(env_class, num_envs):
+    try:
+        env_fns = []
+        for _ in range(num_envs):
+            env_fns.append(make_env(env_class))
+
+        return SubprocVecEnv(env_fns)
+
+    except BrokenPipeError as error:
+        env_error_cleanup()
+
+
+
+def make_vec_env(env_class, num_envs):
     env = None
     while env is None:
         try:
@@ -50,7 +73,6 @@ def make_envs(env_class, num_envs):
 
         except BrokenPipeError as error:
             env_error_cleanup()
-            time.sleep(1)
 
         except Exception as error:
             print(error)
@@ -79,7 +101,7 @@ def get_latest_model_path():
 
         return os.path.join(AGENTS_FOLDER, last_agent, last_agent_model)
 
-    except IndexError as e:
+    except IndexError as error:
         print("Failed loading latest model")
 
         return False

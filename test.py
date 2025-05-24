@@ -6,7 +6,7 @@ import pandas as pd
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 from stable_baselines3 import A2C, DDPG, DQN, PPO, SAC, TD3
-from utils import get_latest_model_path, TEST_RESULTS_FOLDER, make_envs
+from utils import get_latest_model_path, TEST_RESULTS_FOLDER, make_vec_env
 from sc2_environments import *
 
 
@@ -22,7 +22,7 @@ SAVE_RESULTS = True
 
 def test(algorithm):
     start_time = time.strftime('%d-%m_%H-%M')
-    env = make_envs(ENV, NUM_ENVS)
+    env = make_vec_env(ENV, NUM_ENVS)
 
     model = algorithm.load(
         path=MODEL_PATH,

@@ -4,6 +4,8 @@ from pysc2.agents.base_agent import BaseAgent
 from pysc2.env import sc2_env
 from pysc2.lib import actions, features, units
 from pysc2.lib.actions import FUNCTIONS, FUNCTIONS_AVAILABLE, FUNCTION_TYPES
+from pysc2.env.enums import Race
+from pysc2.env.sc2_env import SC2Env, Agent
 from absl import app
 
 _PLAYER_SELF = features.PlayerRelative.SELF
@@ -87,31 +89,51 @@ class TestAgent(BaseAgent):
 
 
 def main(argv):
-    agent = TestAgent()
+    # agent = TestAgent()
+    #
+    # with sc2_env.SC2Env(
+    #         map_name="BuildMarines",
+    #         players=[sc2_env.Agent(sc2_env.Race.zerg)],
+    #         agent_interface_format=features.AgentInterfaceFormat(
+    #             feature_dimensions=features.Dimensions(screen=32, minimap=32),
+    #             use_camera_position=True,
+    #             use_feature_units=True),
+    #         step_mul=8,
+    #         realtime=True,
+    #         visualize=True) as env:
+    #
+    #     agent.setup(env.observation_spec()[0], env.action_spec()[0])
+    #
+    #     time_steps = env.reset()
+    #     agent.reset()
+    #
+    #     while True:
+    #         step_actions = [agent.step(time_steps[0])]
+    #         if time_steps[0].last():
+    #             break
+    #         time_steps = env.step(step_actions)
 
-    # put while cycle here for infinity games
-
-    with sc2_env.SC2Env(
-            map_name="BuildMarines",
-            players=[sc2_env.Agent(sc2_env.Race.zerg)],
+    with SC2Env(
+            map_name="CollectMineralShards",
+            players=[Agent(Race.terran)],
             agent_interface_format=features.AgentInterfaceFormat(
-                feature_dimensions=features.Dimensions(screen=32, minimap=32),
+                feature_dimensions=features.Dimensions(screen=64, minimap=64),
+                use_feature_units=True,
                 use_camera_position=True,
-                use_feature_units=True),
+                crop_to_playable_area=True,
+                action_space=actions.ActionSpace.FEATURES,
+            ),
+            game_steps_per_episode=0,
             step_mul=8,
             realtime=True,
-            visualize=True) as env:
-
-        agent.setup(env.observation_spec()[0], env.action_spec()[0])
-
+            visualize=False
+    ) as env:
         time_steps = env.reset()
-        agent.reset()
 
         while True:
-            step_actions = [agent.step(time_steps[0])]
             if time_steps[0].last():
                 break
-            time_steps = env.step(step_actions)
+            time_steps = env.step([FUNCTIONS.no_op()])
 
 
 if __name__ == '__main__':

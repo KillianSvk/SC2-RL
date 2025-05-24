@@ -1,10 +1,11 @@
 import os
 import time
+from absl import app
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 from stable_baselines3 import A2C, DDPG, DQN, PPO, SAC, TD3
-from utils import AGENTS_FOLDER, make_envs, get_latest_model_path
+from utils import AGENTS_FOLDER, make_vec_env, get_latest_model_path, make_vec_env_sequential
 from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
@@ -23,14 +24,14 @@ POLICY_KWARGS = dict(
 TIMESTEPS = 1_000_000
 SAVING_FREQ = 250_000
 
-CONTINUE_MODEL_PATH = get_latest_model_path()
-# CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
+# CONTINUE_MODEL_PATH = get_latest_model_path()
+CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
 
 
 def train(algorithm):
     start_time = time.strftime('%d-%m_%H-%M')
 
-    env = make_envs(ENV, NUM_ENVS)
+    env = make_vec_env(ENV, NUM_ENVS)
 
     env_names = env.get_attr("name")
     env_name = env_names[0]
@@ -66,7 +67,7 @@ def train(algorithm):
 
 
 def continue_training(algorithm):
-    env = make_envs(ENV, NUM_ENVS)
+    env = make_vec_env(ENV, NUM_ENVS)
 
     model = algorithm.load(
         path=CONTINUE_MODEL_PATH,
@@ -97,10 +98,10 @@ def continue_training(algorithm):
 
 
 if __name__ == '__main__':
-    # train(ALGORITHM)
+    train(ALGORITHM)
     # continue_training(ALGORITHM)
 
-    for _env in [SC2LocalObservation5Env, SC2LocalObservation11Env, SC2LocalObservation17Env, SC2LocalObservationFlattenedEnv]:
+    for _env in [SC2LocalObservationFlattenedEnv]:
         ENV = _env
         for i in range(5):
             train(ALGORITHM)

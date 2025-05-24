@@ -8,7 +8,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import numpy as np
 from abc import ABC, abstractmethod
-from absl import flags
+from absl import flags, logging
 
 import cv2
 import gymnasium as gym
@@ -21,7 +21,10 @@ from pysc2.lib.actions import FUNCTIONS
 from pysc2.env.sc2_env import SC2Env, Agent
 
 FLAGS = flags.FLAGS
-FLAGS(["run.py"])
+FLAGS(["sc2_environments.py"])
+logging.set_verbosity(logging.INFO)
+logging.info("SC2Environments module initialized.")
+
 
 _PLAYER = 1
 _NEUTRAL = 3
@@ -196,7 +199,7 @@ class SC2GymWrapper(gym.Env, ABC):
 
 class SC2LocalObservationEnv(SC2GymWrapper):
 
-    def __init__(self, grid_size):
+    def __init__(self, grid_size=11):
         super().__init__(32, 32)
 
         self.selected_marine = None
@@ -368,24 +371,6 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         pass
 
 
-class SC2LocalObservation5Env(SC2LocalObservationEnv):
-    def __init__(self):
-        grid_size = 5
-        super().__init__(grid_size)
-
-
-class SC2LocalObservation11Env(SC2LocalObservationEnv):
-    def __init__(self):
-        grid_size = 11
-        super().__init__(grid_size)
-
-
-class SC2LocalObservation17Env(SC2LocalObservationEnv):
-    def __init__(self):
-        grid_size = 17
-        super().__init__(grid_size)
-
-
 class SC2LocalRoomsEnv(SC2LocalObservationEnv):
 
     @property
@@ -463,8 +448,7 @@ class SC2LocalRoomsEnv(SC2LocalObservationEnv):
 
 class SC2LocalObservationFlattenedEnv(SC2LocalObservationEnv):
     def __init__(self):
-        grid_size = 11
-        super().__init__(grid_size)
+        super().__init__()
 
     @property
     def name(self):
