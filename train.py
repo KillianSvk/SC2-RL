@@ -4,15 +4,15 @@ import time
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 from stable_baselines3 import A2C, DDPG, DQN, PPO, SAC, TD3
-from utils import AGENTS_FOLDER, make_envs, get_latest_model_path
+from utils import AGENTS_FOLDER, make_vec_env, get_latest_model_path, make_vec_env_sequential
 from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
-ENV = SC2ScreenBoxEnv
+ENV = SC2BuildMarinesEnv
 NUM_ENVS = 6
-ALGORITHM = TD3
-POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
+ALGORITHM = PPO
+POLICY = "MultiInputPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
@@ -22,12 +22,16 @@ POLICY_KWARGS = dict(
 )
 TIMESTEPS = 10_000_000
 SAVING_FREQ = 250_000
+TENSOR_LOG_FOLDER = "tensorboard_build_marine"
+
+# CONTINUE_MODEL_PATH = get_latest_model_path()
+CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
 
 
 def train(algorithm):
     start_time = time.strftime('%d-%m_%H-%M')
 
-    env = make_envs(ENV, NUM_ENVS)
+    env = make_vec_env(ENV, NUM_ENVS)
 
     env_names = env.get_attr("name")
     env_name = env_names[0]
@@ -36,7 +40,7 @@ def train(algorithm):
         env=env,
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
-        tensorboard_log="tensorboard_compare_alg",
+        tensorboard_log=TENSOR_LOG_FOLDER,
     )
 
     model_name = model.__class__.__name__
@@ -56,24 +60,21 @@ def train(algorithm):
         log_interval=4,
         tb_log_name=agent_folder_name,
         progress_bar=True,
-        reset_num_timesteps=False
+        reset_num_timesteps=False,
     )
 
     env.close()
 
 
 def continue_training(algorithm):
-    env = make_envs(ENV, NUM_ENVS)
-
-    model_path = get_latest_model_path()
-    # model_path = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
+    env = make_vec_env(ENV, NUM_ENVS)
 
     model = algorithm.load(
-        path=model_path,
+        path=CONTINUE_MODEL_PATH,
         env=env,
     )
 
-    head, agent_checkpoint = os.path.split(model_path)
+    head, agent_checkpoint = os.path.split(CONTINUE_MODEL_PATH)
     agents_folder, agent_folder = os.path.split(head)
     agent_checkpoint_arr = agent_checkpoint.split("_")
     agent_name = "_".join(agent_checkpoint_arr[:-1])
@@ -99,3 +100,8 @@ def continue_training(algorithm):
 if __name__ == '__main__':
     train(ALGORITHM)
     # continue_training(ALGORITHM)
+
+    # for _env in [SC2LocalObservationFlattenedEnv]:
+    #     ENV = _env
+    #     for i in range(5):
+    #         train(ALGORITHM)

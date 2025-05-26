@@ -1,4 +1,6 @@
 import os
+import random
+
 import psutil
 import time
 
@@ -9,6 +11,7 @@ from stable_baselines3.common.env_util import make_vec_env as sb3_make_vec_env
 
 MONITOR_FOLDER = "monitor"
 AGENTS_FOLDER = 'agents'
+TEST_RESULTS_FOLDER = 'test_results'
 
 
 def make_monitored_env(env_class, start_time=None, env_id=0):
@@ -40,7 +43,28 @@ def env_error_cleanup():
             proc.kill()
 
 
-def make_envs(env_class, num_envs):
+def make_env(env_class):
+    def _init():
+        time.sleep(2)
+        return env_class()
+
+    return _init
+
+
+def make_vec_env_sequential(env_class, num_envs):
+    try:
+        env_fns = []
+        for _ in range(num_envs):
+            env_fns.append(make_env(env_class))
+
+        return SubprocVecEnv(env_fns)
+
+    except BrokenPipeError as error:
+        env_error_cleanup()
+
+
+
+def make_vec_env(env_class, num_envs):
     env = None
     while env is None:
         try:
@@ -49,7 +73,6 @@ def make_envs(env_class, num_envs):
 
         except BrokenPipeError as error:
             env_error_cleanup()
-            time.sleep(1)
 
         except Exception as error:
             print(error)
@@ -58,21 +81,29 @@ def make_envs(env_class, num_envs):
 
 
 def get_latest_model_path():
-    existing_agents = sorted(
-        os.listdir(AGENTS_FOLDER),
-        key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
-        reverse=True
-    )
+    try:
+        existing_agents = sorted(
+            os.listdir(AGENTS_FOLDER),
+            key=lambda x: os.path.getctime(os.path.join(AGENTS_FOLDER, x)),
+            reverse=True
+        )
 
-    last_agent = existing_agents[0]
-    agent_path = os.path.join(AGENTS_FOLDER, last_agent)
-    agent_models = sorted(
-        os.listdir(agent_path),
-        key=lambda x: os.path.getctime(os.path.join(agent_path, x)),
-        reverse=True
-    )
+        last_agent = existing_agents[0]
+        agent_path = os.path.join(AGENTS_FOLDER, last_agent)
+        agent_models = sorted(
+            os.listdir(agent_path),
+            key=lambda x: os.path.getctime(os.path.join(agent_path, x)),
+            reverse=True
+        )
 
-    last_agent_model = agent_models[0]
-    last_agent_model = last_agent_model.split(".")[0]
+        last_agent_model = agent_models[0]
+        last_agent_model = last_agent_model.split(".")[0]
 
-    return os.path.join(AGENTS_FOLDER, last_agent, last_agent_model)
+        return os.path.join(AGENTS_FOLDER, last_agent, last_agent_model)
+
+    except IndexError as error:
+        print("Failed loading latest model")
+
+        return False
+
+

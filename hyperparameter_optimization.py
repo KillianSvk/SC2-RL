@@ -14,7 +14,7 @@ from stable_baselines3 import DQN
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from sc2_environments import *
-from utils import make_monitored_env, make_envs
+from utils import make_monitored_env, make_vec_env
 
 OPTUNA_FOLDER = "optuna"
 ENV = SC2ScreenEnv
@@ -57,7 +57,7 @@ def optimize_dqn(trial):
     # cnn_kwargs["net_arch"] = trial.suggest_categorical("net_arch", [net_arch_tiny, net_arch_default, net_arch_big])
     # cnn_kwargs["activation_fn"] = trial.suggest_categorical("activation_fn", [nn.Tanh, nn.ReLU,])
 
-    env = make_envs(ENV, NUM_ENVS)
+    env = make_vec_env(ENV, NUM_ENVS)
 
     model = ALGORITHM(
         env=env,

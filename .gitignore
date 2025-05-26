@@ -7,7 +7,9 @@ tensorboard_old
 /tensorboard_middle_invisible/
 /tensorboard_multiprocess/
 /tensorboard_compare_alg/
+/tensorboard_collect_minerals/
 monitor
 optuna
 /optuna_cnn/
 /optuna_screen_22-4/
+/test_results/
