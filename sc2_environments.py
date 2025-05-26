@@ -22,8 +22,9 @@ from pysc2.env.sc2_env import SC2Env, Agent
 
 FLAGS = flags.FLAGS
 FLAGS(["sc2_environments.py"])
-logging.set_verbosity(logging.INFO)
-logging.info("SC2Environments module initialized.")
+
+# logging.set_verbosity(logging.INFO)
+# logging.info("SC2Environments module initialized.")
 
 
 _PLAYER = 1
@@ -1027,7 +1028,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
 
 class SC2BuildMarinesEnv(SC2GymWrapper):
     def __init__(self):
-        screen_size, minimap_size = 64, 64
+        screen_size, minimap_size = 36, 36
         super().__init__(screen_size, minimap_size)
 
         # select_point = Function.ui_func(2, "select_point", select_point),  FUNCTIONS.select_point(select_point_act [4]; screen [64, 64])
@@ -1073,7 +1074,7 @@ class SC2BuildMarinesEnv(SC2GymWrapper):
     @property
     def observation_space(self):
         observation_space = spaces.Dict({
-            "player": spaces.MultiDiscrete([np.iinfo(np.int32).max, 200 + 1, 200 + 1]),
+            "player": spaces.MultiDiscrete([np.iinfo(np.uint16).max, 200 + 1, 200 + 1]),
             "screen": spaces.Box(0, 255, (5, self.screen_size, self.screen_size), np.uint8),
         })
 
@@ -1176,6 +1177,10 @@ if __name__ == "__main__":
         #     random_action = test_env.action_space.sample()
         #     test_env.step(random_action)
         #     # test_env.render()
+
+        observation_space = test_env.observation_space
+        for key, subspace in observation_space.spaces.items():
+            print(key, subspace)
 
     finally:
         if test_env is not None:
