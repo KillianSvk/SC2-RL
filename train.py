@@ -100,8 +100,3 @@ def continue_training(algorithm):
 if __name__ == '__main__':
     train(ALGORITHM)
     # continue_training(ALGORITHM)
-
-    # for _env in [SC2LocalObservationFlattenedEnv]:
-    #     ENV = _env
-    #     for i in range(5):
-    #         train(ALGORITHM)
