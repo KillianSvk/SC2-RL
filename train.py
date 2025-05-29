@@ -9,10 +9,10 @@ from sc2_environments import *
 from agent_logging import CustomCheckpointCallback
 
 
-ENV = SC2BuildMarinesEnv
+ENV = SC2ScreenEnv
 NUM_ENVS = 6
-ALGORITHM = PPO
-POLICY = "MultiInputPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
+ALGORITHM = DQN
+POLICY = "MlpPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
@@ -20,9 +20,9 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 10_000_000
+TIMESTEPS = 10_000
 SAVING_FREQ = 250_000
-TENSOR_LOG_FOLDER = "tensorboard_build_marine"
+TENSOR_LOG_FOLDER = "tensorboard"
 
 # CONTINUE_MODEL_PATH = get_latest_model_path()
 CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
@@ -57,7 +57,6 @@ def train(algorithm):
     model.learn(
         total_timesteps=TIMESTEPS,
         callback=callback,
-        log_interval=4,
         tb_log_name=agent_folder_name,
         progress_bar=True,
         reset_num_timesteps=False,
@@ -100,3 +99,10 @@ def continue_training(algorithm):
 if __name__ == '__main__':
     train(ALGORITHM)
     # continue_training(ALGORITHM)
+
+    # for i, env in enumerate([SC2LocalRoomsEnv, SC2LocalObservationEnv]):
+    #     if i == 1:
+    #         POLICY = "CnnPolicy"
+    #
+    #     for _ in range(5):
+    #         train(ALGORITHM)

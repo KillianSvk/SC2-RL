@@ -80,7 +80,7 @@ def main(argv):
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
 # tensorboard --logdir=tensorboard
 if __name__ == "__main__":
-    # app.run(main)
+    app.run(main)
 
     # env = ENV()
     # model = ALGORITHM(
@@ -99,8 +99,3 @@ if __name__ == "__main__":
     #
     # # Save to CSV
     # df.to_csv("tensorboard_multiprocess_data_indexed.csv")
-
-    for i in range(10):
-        env = make_vec_env_sequential(SC2LocalObservationEnv, 12)
-        env.close()
-        time.sleep(1)

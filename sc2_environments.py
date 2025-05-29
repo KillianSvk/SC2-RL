@@ -372,6 +372,16 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         pass
 
 
+class SC2LocalObservationEnv5(SC2LocalObservationEnv):
+    def __init__(self):
+        super().__init__(5)
+
+
+class SC2LocalObservationEnv17(SC2LocalObservationEnv):
+    def __init__(self):
+        super().__init__(17)
+
+
 class SC2LocalRoomsEnv(SC2LocalObservationEnv):
 
     @property
@@ -1177,10 +1187,6 @@ if __name__ == "__main__":
         #     random_action = test_env.action_space.sample()
         #     test_env.step(random_action)
         #     # test_env.render()
-
-        observation_space = test_env.observation_space
-        for key, subspace in observation_space.spaces.items():
-            print(key, subspace)
 
     finally:
         if test_env is not None:
