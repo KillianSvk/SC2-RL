@@ -19,9 +19,9 @@ AGENTS_FOLDER = 'agents'
 MONITOR_FOLDER = "monitor"
 
 NUM_ENVS = 6
-ENV = SC2ScreenEnv
+ENV = SC2LocalRoomsEnv
 ALGORITHM = DQN
-POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy
+POLICY = "MlpPolicy" #MlpPolicy/CnnPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
@@ -80,7 +80,7 @@ def main(argv):
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
 # tensorboard --logdir=tensorboard
 if __name__ == "__main__":
-    app.run(main)
+    # app.run(main)
 
     # env = ENV()
     # model = ALGORITHM(
@@ -99,3 +99,7 @@ if __name__ == "__main__":
     #
     # # Save to CSV
     # df.to_csv("tensorboard_multiprocess_data_indexed.csv")
+
+    env = ENV()
+    model = DQN(POLICY, env)
+    print(model.policy)

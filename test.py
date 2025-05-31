@@ -10,7 +10,7 @@ from utils import get_latest_model_path, TEST_RESULTS_FOLDER, make_vec_env, AGEN
 from sc2_environments import *
 
 
-ENV = SC2LocalObservationEnv17
+ENV = SC2ScreenEnv
 ALGORITHM = DQN
 NUM_ENVS = 6
 NUM_TESTING_EPISODES = 100
@@ -104,16 +104,17 @@ def test(algorithm):
 
 
 if __name__ == '__main__':
-    test(ALGORITHM)
+    # test(ALGORITHM)
 
-    # agent_paths = [
-    #     "DQN_local_grid_17x17_23-05_06-23",
-    #     "DQN_local_grid_17x17_23-05_06-58",
-    #     "DQN_local_grid_17x17_23-05_07-34",
-    #     "DQN_local_grid_17x17_23-05_08-09",
-    #     "DQN_local_grid_17x17_23-05_08-44",
-    # ]
-    #
-    # for agent_path in agent_paths:
-    #     MODEL_PATH = os.path.join(AGENTS_FOLDER, agent_path, "DQN_local_grid_17x17_1000k.zip")
-    #     test(ALGORITHM)
+    agent_paths = [
+        "DQN_screen_36x36_31-05_13-30",
+        "DQN_screen_36x36_31-05_12-56",
+        "DQN_screen_36x36_31-05_12-22",
+        "DQN_screen_36x36_29-05_00-05",
+        "DQN_screen_36x36_28-05_23-35",
+        "DQN_screen_36x36_28-05_23-05",
+    ]
+
+    for agent_path in agent_paths:
+        MODEL_PATH = os.path.join(AGENTS_FOLDER, agent_path, "DQN_screen_36x36_1000k.zip")
+        test(ALGORITHM)

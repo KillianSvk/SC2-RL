@@ -322,7 +322,6 @@ class SC2LocalObservationEnv(SC2GymWrapper):
         return info
 
     def step(self, action):
-        """Executes the given action in the SC2 environment and returns the new state, reward, and episode status."""
         x, y = self.local_to_global_action(action)
 
         player_relative = self.obs.observation.feature_screen.player_relative
@@ -480,6 +479,74 @@ class SC2LocalObservationFlattenedEnv(SC2LocalObservationEnv):
         return flatten_gym_obs
 
 
+class SC2LocalObs8DirMovement(SC2LocalObservationEnv):
+
+    def __init__(self):
+        super().__init__()
+
+        self.movement_distance = 5
+        self.move_deltas = [
+            (0, 0),
+            (0, -1),  # up
+            (0, 1),  # down
+            (-1, 0),  # left
+            (1, 0),  # right
+            (-1, -1),  # up-left
+            (1, -1),  # up-right
+            (-1, 1),  # down-left
+            (1, 1),  # down-right
+        ]
+
+    @property
+    def name(self):
+        return f"local_grid_{self.GRID_SIZE}x{self.GRID_SIZE}_dir_movement"
+
+    @property
+    def action_space(self):
+        return spaces.Discrete(len(self.move_deltas))
+
+    def action_to_pos(self, action):
+        if self.selected_marine is None:
+            return 0, 0
+
+        selected_marine_x, selected_marine_y = self.selected_marine.x, self.selected_marine.y
+        delta_x, delta_y = self.move_deltas[action]
+        global_x, global_y = selected_marine_x + (delta_x * self.movement_distance), selected_marine_y + (delta_y * self.movement_distance)
+
+        return global_x, global_y
+
+    def step(self, action):
+        x, y = self.action_to_pos(action)
+
+        player_relative = self.obs.observation.feature_screen.player_relative
+        available_actions = self.obs.observation.available_actions
+
+        if FUNCTIONS.Move_screen.id in available_actions:
+            if self.in_screen_bounds(x, y):
+                sc2_action = [FUNCTIONS.Move_screen("now", (x, y))]
+
+            else:
+                sc2_action = [FUNCTIONS.no_op()]
+
+        else:
+            # sc2_action = [FUNCTIONS.select_army("select")]
+            marines_pos = self.xy_locations(player_relative == _PLAYER)
+            marine_pos = marines_pos[0]
+            sc2_action = [FUNCTIONS.select_point("select", marine_pos)]
+
+        time_step = self.sc2_env.step(sc2_action)
+
+        self.obs = time_step[0]
+        reward = self.reward_func()
+        done = self.obs.last()
+        self.steps += 1
+        truncated = False
+        info = self.get_step_info()
+        obs = self.get_gym_observation()
+
+        return obs, reward, done, truncated, info
+
+
 class SC2ScreenEnv(SC2GymWrapper):
 
     def __init__(self):
@@ -505,7 +572,6 @@ class SC2ScreenEnv(SC2GymWrapper):
     @staticmethod
     def define_move_deltas():
         SQRT2_INV = 1 / math.sqrt(2)
-
         # move_deltas = [
         #     (0, 0),
         #     (0, -1),  # up
@@ -547,17 +613,23 @@ class SC2ScreenEnv(SC2GymWrapper):
         minimap_obs = np.full(shape=(3, self.screen_size, self.screen_size), fill_value=0, dtype=np.uint8)
         minimap_player_relative = self.obs.observation.feature_minimap["player_relative"]
         minimap_selected = self.obs.observation.feature_minimap["selected"]
+        minimap_pathable = self.obs.observation.feature_minimap["pathable"]
 
         player_relative_xy = self.xy_locations(minimap_player_relative == _NEUTRAL)
         selected_xy = self.xy_locations(minimap_selected == 1)
+        not_pathable_xy = self.xy_locations(minimap_pathable == 0)
 
+        lime_green = [50, 205, 50]
         for x, y in selected_xy:
-            lime_green = [50, 205, 50]
             minimap_obs[:, y, x] = lime_green
 
+        light_blue = [173, 216, 230]
         for x, y in player_relative_xy:
-            light_blue = [173, 216, 230]
             minimap_obs[:, y, x] = light_blue
+
+        red = [250, 0, 0]
+        for x, y in not_pathable_xy:
+            minimap_obs[:, y, x] = red
 
         # plt.imshow(minimap_obs.transpose((1, 2, 0)))
         # plt.title("RGB Screen Observation")
@@ -594,7 +666,6 @@ class SC2ScreenEnv(SC2GymWrapper):
 
         time_step = self.sc2_env.step(sc2_action)
 
-        # Unpack the returned values
         self.obs = time_step[0]
         self.steps += 1
 

@@ -12,7 +12,7 @@ from agent_logging import CustomCheckpointCallback
 ENV = SC2ScreenEnv
 NUM_ENVS = 6
 ALGORITHM = DQN
-POLICY = "MlpPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
+POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
     # features_extractor_kwargs=dict(features_dim=256),
@@ -20,9 +20,9 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 10_000
+TIMESTEPS = 1_000_000
 SAVING_FREQ = 250_000
-TENSOR_LOG_FOLDER = "tensorboard"
+TENSOR_LOG_FOLDER = "tensorboard_collect_minerals"
 
 # CONTINUE_MODEL_PATH = get_latest_model_path()
 CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
@@ -97,11 +97,16 @@ def continue_training(algorithm):
 
 
 if __name__ == '__main__':
-    train(ALGORITHM)
+    # train(ALGORITHM)
     # continue_training(ALGORITHM)
 
-    # for i, env in enumerate([SC2LocalRoomsEnv, SC2LocalObservationEnv]):
-    #     if i == 1:
+    for _ in range(5):
+        train(ALGORITHM)
+
+    # for i, env in enumerate([SC2LocalRoomsEnv, SC2LocalObs8DirMovement, SC2LocalObservationEnv]):
+    #     ENV = env
+    #
+    #     if i == 2:
     #         POLICY = "CnnPolicy"
     #
     #     for _ in range(5):

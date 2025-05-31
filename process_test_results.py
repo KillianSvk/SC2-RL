@@ -3,17 +3,16 @@ import pandas as pd
 import os
 
 from utils import TEST_RESULTS_FOLDER
+
 TEST_FILES = [
-    "local_grid_flattened_env_11x11_test_29-05_14-22.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-24.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-25.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-27.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-29.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-31.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-32.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-34.csv",
-    "local_grid_flattened_env_11x11_test_29-05_14-35.csv",
+    "screen_36x36_test_31-05_15-51.csv",
+    "screen_36x36_test_31-05_15-53.csv",
+    "screen_36x36_test_31-05_15-54.csv",
+    "screen_36x36_test_31-05_15-56.csv",
+    "screen_36x36_test_31-05_15-58.csv",
+    "screen_36x36_test_31-05_15-59.csv",
 ]
+PRINT_INDIVIDUAL_STATS = True
 
 
 def calculate_run_stats(test_result_file: str):
@@ -39,12 +38,14 @@ def calculate_run_stats(test_result_file: str):
     data["max_score"] = max_score
     data["percentiles"] = percentiles
 
-    print(f"Mean score: {mean_score:.4f}")
-    print(f"Median score: {median}")
-    print(f"Variance: {variance:.4f}")
-    print(f"Standard Deviation: {std_deviation:.4f}")
-    print(f"Min/Max score: {min_score} / {max_score}")
-    print(f"25/50/75 percentile scores: {percentiles}")
+    if PRINT_INDIVIDUAL_STATS:
+        print(f"Mean score: {mean_score:.4f}")
+        print(f"Median score: {median}")
+        print(f"Variance: {variance:.4f}")
+        print(f"Standard Deviation: {std_deviation:.4f}")
+        print(f"Min/Max score: {min_score} / {max_score}")
+        print(f"25/50/75 percentile scores: {percentiles}")
+        print("------------------------------------------")
 
     return data
 
@@ -63,14 +64,12 @@ def process_all_tests(test_files):
         test_data = calculate_run_stats(test_result_file)
         for key, value in test_data.items():
             if key == "percentiles":
-                sum_data[key][0] += value[0]
-                sum_data[key][1] += value[1]
-                sum_data[key][2] += value[2]
+                sum_data[key][0] += float(value[0])
+                sum_data[key][1] += float(value[1])
+                sum_data[key][2] += float(value[2])
 
             else:
                 sum_data[key] += value
-
-        print("---------------------------------------")
 
     average_mean_score = sum_data["mean_score"] / len(test_files)
     average_median = sum_data["median"] / len(test_files)
