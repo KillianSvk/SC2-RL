@@ -1,66 +1,27 @@
 import os
 import time
-
 import pysc2.bin.map_list
-from absl import flags, app
+
+# from stable_baselines3 import DQN, PPO
+# from sc2_environments import *
+from utils import make_vec_env_sequential, get_latest_model_name, get_latest_model_checkpoint
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-from stable_baselines3 import DQN, PPO
-
-from sc2_environments import *
-from utils import make_vec_env_sequential
-from train import train
-from test import test
-
-FLAGS = flags.FLAGS
-
-AGENTS_FOLDER = 'agents'
-MONITOR_FOLDER = "monitor"
-
-NUM_ENVS = 6
-ENV = SC2LocalRoomsEnv
-ALGORITHM = DQN
-POLICY = "MlpPolicy" #MlpPolicy/CnnPolicy
-POLICY_KWARGS = dict(
-    # features_extractor_class=CustomizableCNN,
-    # features_extractor_kwargs=dict(features_dim=256),
-    # normalize_images=False,
-
-    # net_arch=[256, 256, 128]
-    # activation_fn=nn.ReLU
-)
-TIMESTEPS = 50_000
-SAVING_FREQ = 10_000
-
-
-def run_from_cmd(argv):
-    algorithm = None
-
-    if argv[1] == 'dqn':
-        algorithm = DQN
-
-    elif argv[1] == 'ppo':
-        algorithm = PPO
-
-    else:
-        print("Wrong or None algorithm was chosen!")
-        return
-
-    if argv[2] == 'train':
-        train(algorithm)
-
-    elif argv[2] == 'test':
-        test(algorithm)
-
-    else:
-        print('Write "test" or "train" for training or testing')
-
-
-def main(argv):
-    if len(argv) == 2:
-        run_from_cmd(argv)
-
+# NUM_ENVS = 6
+# ENV = SC2LocalRoomsEnv
+# ALGORITHM = DQN
+# POLICY = "MlpPolicy" #MlpPolicy/CnnPolicy
+# POLICY_KWARGS = dict(
+#     # features_extractor_class=CustomizableCNN,
+#     # features_extractor_kwargs=dict(features_dim=256),
+#     # normalize_images=False,
+#
+#     # net_arch=[256, 256, 128]
+#     # activation_fn=nn.ReLU
+# )
+# TIMESTEPS = 50_000
+# SAVING_FREQ = 10_000
 
 # triton==3.2.0
 # nvidia-cublas-cu12==12.4.5.8
@@ -78,7 +39,7 @@ def main(argv):
 # nvidia-nvtx-cu12==12.4.127
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
-# tensorboard --logdir=tensorboard
+# tensorboard_defeat_zerg_bane --logdir=tensorboard_defeat_zerg_bane
 if __name__ == "__main__":
     # app.run(main)
 
@@ -87,7 +48,7 @@ if __name__ == "__main__":
     #     env=env,
     #     policy=POLICY,
     #     policy_kwargs=POLICY_KWARGS,
-    #     tensorboard_log="tensorboard",
+    #     tensorboard_log="tensorboard_defeat_zerg_bane",
     #     device="cuda",
     # )
     # print(model.policy)
@@ -100,6 +61,10 @@ if __name__ == "__main__":
     # # Save to CSV
     # df.to_csv("tensorboard_multiprocess_data_indexed.csv")
 
-    env = ENV()
-    model = DQN(POLICY, env)
-    print(model.policy)
+    # env = ENV()
+    # model = DQN(POLICY, env)
+    # print(model.policy)
+
+    latest_model_name = get_latest_model_name()
+    latest_model_checkpoint = get_latest_model_checkpoint(latest_model_name)
+    print(latest_model_name, latest_model_checkpoint)

@@ -11,7 +11,7 @@ from agent_logging import CustomCheckpointCallback
 
 ENV = SC2ScreenEnv
 NUM_ENVS = 6
-ALGORITHM = DQN
+ALGORITHM = PPO
 POLICY = "CnnPolicy" #MlpPolicy/CnnPolicy/MultiInputPolicy
 POLICY_KWARGS = dict(
     # features_extractor_class=CustomizableCNN,
@@ -20,9 +20,9 @@ POLICY_KWARGS = dict(
     # net_arch=[256, 256, 128]
     # activation_fn=nn.ReLU
 )
-TIMESTEPS = 1_000_000
+TIMESTEPS = 10_000_000
 SAVING_FREQ = 250_000
-TENSOR_LOG_FOLDER = "tensorboard_collect_minerals"
+TENSOR_LOG_FOLDER = "tensorboard_compare_alg"
 
 # CONTINUE_MODEL_PATH = get_latest_model_path()
 CONTINUE_MODEL_PATH = "agents/DQN_middle_invisible_48x48_26-04_00-17/DQN_middle_invisible_48x48_15000k"
@@ -41,6 +41,7 @@ def train(algorithm):
         policy=POLICY,
         policy_kwargs=POLICY_KWARGS,
         tensorboard_log=TENSOR_LOG_FOLDER,
+        device="cuda"
     )
 
     model_name = model.__class__.__name__
@@ -97,17 +98,19 @@ def continue_training(algorithm):
 
 
 if __name__ == '__main__':
-    # train(ALGORITHM)
+    train(ALGORITHM)
     # continue_training(ALGORITHM)
 
-    for _ in range(5):
-        train(ALGORITHM)
 
-    # for i, env in enumerate([SC2LocalRoomsEnv, SC2LocalObs8DirMovement, SC2LocalObservationEnv]):
+    # for i, env in enumerate([SC2LocalObs8DirMovement, SC2ScreenEnv]):
     #     ENV = env
     #
-    #     if i == 2:
-    #         POLICY = "CnnPolicy"
+    #     if i == 0:
+    #         for _ in range(5):
+    #             train(ALGORITHM)
     #
-    #     for _ in range(5):
+    #     elif i == 1:
+    #         TIMESTEPS = 10_000_000
+    #         TENSOR_LOG_FOLDER = "tensorboard_compare_alg"
+    #         POLICY = "CnnPolicy"
     #         train(ALGORITHM)

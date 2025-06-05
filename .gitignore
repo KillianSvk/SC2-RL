@@ -1,9 +1,8 @@
 .idea
 .venv
 agents
-tensorboard
-tensorboard_pptx
-tensorboard_old
+/tensorboard_pptx/
+/tensorboard_old/
 /tensorboard_middle_invisible/
 /tensorboard_multiprocess/
 /tensorboard_compare_alg/
@@ -14,3 +13,7 @@ optuna
 /optuna_screen_22-4/
 /test_results/
 /tensorboard_build_marine/
+/s2clientprotocol/
+/csv_data_compare_alg/
+/csv_data_collect_minerals/
+/tensorboard_defeat_zerg_bane/

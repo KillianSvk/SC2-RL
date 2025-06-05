@@ -33,50 +33,57 @@ _MINERAL_SHARD = 1680
 
 
 class SC2GymWrapper(gym.Env, ABC):
-    """SC2GymWrapper is an abstract base class that wraps PySC2's SC2Env to make it compatible with the Gymnasium API.
-
-    This class provides a foundation for creating custom StarCraft II environments that can be used with reinforcement
-    learning algorithms. It defines the structure and required methods for implementing Gym-compatible environments.
-
-    Attributes:
-        sc2_env (SC2Env): The underlying PySC2 environment instance.
-        obs (Any): The current observation from the SC2 environment.
-        episodes (int): The number of episodes completed in the environment.
-        steps (int): The number of steps taken in the current episode.
-        screen_size (int): The size of the screen observation space.
-        minimap_size (int): The size of the minimap observation space.
-
-    Abstract Properties:
-        action_space (gym.Space): Defines the Gym-compatible action space for the environment.
-        observation_space (gym.Space): Defines the Gym-compatible observation space for the environment.
-        name (str): The name of the environment implementation.
-
-    Abstract Methods:
-        get_gym_observation(self):
-            Returns an observation from pysc2 environment in Gym-compatible space
-
-        step(action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-            Executes the given action in the environment and returns the new state, reward, and episode status.
-
-    Methods:
-        reset(seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[ObsType, dict[str, Any]]:
-            Resets the environment to its initial state and returns the initial observation and optional info.
-
-        render()
-
-        close():
-            Frees any resources used by the environment.
-
-        in_screen_bounds(self, x, y) -> bool:
-            Return True if position in inside the screen bounds
-
-        xy_locations(mask: np.ndarray) -> list[tuple[int, int]]:
-            Converts a boolean mask into a list of (x, y) coordinates where the mask is True.
-
-    Usage:
-        This class is intended to be subclassed to create specific SC2 environments. Subclasses must implement the
-        abstract properties and methods to define the action space, observation space, and environment behavior.
     """
+        A base wrapper class for integrating StarCraft II (SC2) environments with the Gymnasium API.
+
+        This abstract class provides a foundation for creating custom SC2 environments that are compatible
+        with the Gymnasium framework. It defines the structure and essential methods required for interaction
+        with the SC2 environment, including observation and action spaces, environment initialization, and
+        step/reset logic.
+
+        Attributes:
+            episodes (int): The number of episodes completed in the environment.
+            steps (int): The number of steps taken in the current episode.
+            screen_size (int): The size of the screen feature map used in the SC2 environment.
+            minimap_size (int): The size of the minimap feature map used in the SC2 environment.
+            obs (Any): The current observation from the SC2 environment.
+            sc2_env (SC2Env): The initialized SC2 environment instance.
+            action_space (gym.spaces): Attribute method to define the Gym-compatible action space.
+            observation_space (gym.spaces):  Abstract method to define the Gym-compatible observation space.
+
+        Methods:
+            obs (property):
+                Getter and setter for the current observation from the SC2 environment.
+
+            name (property):
+                Abstract method to define the name of the environment.
+
+            get_gym_observation():
+                Abstract method to convert SC2 observations into a Gym-compatible format.
+
+            step(action):
+                Abstract method to perform an action in the environment and return the result.
+
+            reset(seed=None, options=None):
+                Resets the environment to its initial state and returns the initial observation.
+
+            close():
+                Frees any resources used by the environment.
+
+            init_sc2_env():
+                Initializes the SC2 environment with specific parameters such as map name, player race,
+                and interface format.
+
+            render():
+                Abstract method to render the current state of the environment.
+
+            in_screen_bounds(x, y):
+                Checks if the given coordinates are within the screen bounds.
+
+            xy_locations(mask):
+                Converts a boolean mask into a list of (x, y) coordinates where the mask is True.
+        """
+
 
     def __init__(self, screen_size, minimap_size):
         self.episodes = 0
@@ -457,8 +464,8 @@ class SC2LocalRoomsEnv(SC2LocalObservationEnv):
 
 
 class SC2LocalObservationFlattenedEnv(SC2LocalObservationEnv):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, grid_size=11):
+        super().__init__(grid_size)
 
     @property
     def name(self):
@@ -470,7 +477,7 @@ class SC2LocalObservationFlattenedEnv(SC2LocalObservationEnv):
 
     @property
     def observation_space(self):
-        return spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE * self.GRID_SIZE,), dtype=np.int8)
+        return spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE * self.GRID_SIZE, ), dtype=np.int8)
 
     def get_gym_observation(self):
         gym_obs = super(SC2LocalObservationFlattenedEnv, self).get_gym_observation()
@@ -481,20 +488,20 @@ class SC2LocalObservationFlattenedEnv(SC2LocalObservationEnv):
 
 class SC2LocalObs8DirMovement(SC2LocalObservationEnv):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, grid_size=11):
+        super().__init__(grid_size)
 
         self.movement_distance = 5
         self.move_deltas = [
             (0, 0),
-            (0, -1),  # up
-            (0, 1),  # down
-            (-1, 0),  # left
-            (1, 0),  # right
-            (-1, -1),  # up-left
-            (1, -1),  # up-right
-            (-1, 1),  # down-left
-            (1, 1),  # down-right
+            (0, -1),
+            (0, 1),
+            (-1, 0),
+            (1, 0),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
         ]
 
     @property
@@ -547,6 +554,25 @@ class SC2LocalObs8DirMovement(SC2LocalObservationEnv):
         return obs, reward, done, truncated, info
 
 
+class SC2LocalObs8DirMovementFlattened(SC2LocalObs8DirMovement):
+    def __init__(self):
+        super().__init__(17)
+
+    @property
+    def name(self):
+        return f"local_grid_flattened_{self.GRID_SIZE}x{self.GRID_SIZE}_dir_movement"
+
+    @property
+    def observation_space(self):
+        return spaces.Box(low=-1, high=1, shape=(self.GRID_SIZE * self.GRID_SIZE,), dtype=np.int8)
+
+    def get_gym_observation(self):
+        gym_obs = super().get_gym_observation()
+        flatten_gym_obs = gym_obs.flatten()
+
+        return flatten_gym_obs
+
+
 class SC2ScreenEnv(SC2GymWrapper):
 
     def __init__(self):
@@ -585,15 +611,15 @@ class SC2ScreenEnv(SC2GymWrapper):
         # ]
 
         move_deltas = [
-            (0, 0),
-            (0, -1),  # up
-            (0, 1),  # down
-            (-1, 0),  # left
-            (1, 0),  # right
-            (-1, -1),  # up-left
-            (1, -1),  # up-right
-            (-1, 1),  # down-left
-            (1, 1),  # down-right
+            # (0, 0),
+            (0, -1),
+            (0, 1),
+            (-1, 0),
+            (1, 0),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
         ]
 
         return move_deltas
