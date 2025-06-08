@@ -39,7 +39,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 # nvidia-nvtx-cu12==12.4.127
 
 # scp -r C:\Users\petoh\Desktop\School\Bakalarka\web\index.html hozlar5@davinci.fmph.uniba.sk:~/public_html/bakalarska_praca/
-# tensorboard_defeat_zerg_bane --logdir=tensorboard_defeat_zerg_bane
+# tensorboard --logdir=tensorboard_defeat_zerg_bane
 if __name__ == "__main__":
     # app.run(main)
 

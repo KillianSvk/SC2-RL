@@ -10,12 +10,12 @@ from utils import get_latest_model_path, get_latest_model_checkpoint, TEST_RESUL
 from sc2_environments import *
 
 
-ENV = SC2ScreenEnv
+ENV = SC2DefeatZerglingsAndBanelingsEnv
 ALGORITHM = PPO
-NUM_ENVS = 6
+NUM_ENVS = 1
 NUM_TESTING_EPISODES = 100
 # MODEL_PATH = get_latest_model_path()
-MODEL_PATH = "agents/DQN_screen_36x36_22-04_00-15/DQN_screen_36x36_45000k.zip"
+MODEL_PATH = "agents/PPO_defeat_zerg_bane_18-05_00-19/PPO_defeat_zerg_bane_10002k.zip"
 
 # MODEL_NAMES = [
 #     "A2C_screen_36x36_11-05_23-22",
@@ -33,7 +33,7 @@ PRINT_RESULTS = False
 SAVE_RESULTS = True
 
 
-def test(agent_name, algorithm):
+def test(algorithm):
     model_start_time = time.strftime('%d-%m_%H-%M')
     env = make_vec_env(ENV, NUM_ENVS)
     # env = ENV()
@@ -111,7 +111,8 @@ def test(agent_name, algorithm):
         })
 
         os.makedirs(TEST_RESULTS_FOLDER, exist_ok=True)
-        path = os.path.join(TEST_RESULTS_FOLDER, f"{agent_name}_test.csv")
+        # path = os.path.join(TEST_RESULTS_FOLDER, f"{agent_name}_test.csv")
+        path = os.path.join(TEST_RESULTS_FOLDER, f"test.csv")
         df.to_csv(path, index=False)
 
         print("results saved")
@@ -191,7 +192,7 @@ def test_random_agent():
 
 
 if __name__ == '__main__':
-    # test(ALGORITHM)
+    test(ALGORITHM)
     # test_random_agent()
     # for model in MODEL_NAMES:
     #     print(model, get_latest_model_checkpoint(model))
@@ -202,13 +203,13 @@ if __name__ == '__main__':
     #     # "DQN_screen_36x36_30-05_23-51",
     # ]
 
-    agent_paths = [
-        # ("PPO_screen_36x36_12-05_09-38", "PPO_screen_36x36_10002k.zip"),
-        ("PPO_screen_box_36x36_03-06_08-52", "PPO_screen_box_36x36_10014k.zip"),
-        ("PPO_screen_box_36x36_31-05_23-54", "PPO_screen_box_36x36_10002k.zip"),
-    ]
-
-    for i, (agent_path, checkpoint) in enumerate(agent_paths):
-        MODEL_PATH = os.path.join(AGENTS_FOLDER, agent_path, checkpoint)
-        print(f"testing: {agent_path}")
-        test(agent_path, ALGORITHM)
+    # agent_paths = [
+    #     # ("PPO_screen_36x36_12-05_09-38", "PPO_screen_36x36_10002k.zip"),
+    #     ("PPO_screen_box_36x36_03-06_08-52", "PPO_screen_box_36x36_10014k.zip"),
+    #     ("PPO_screen_box_36x36_31-05_23-54", "PPO_screen_box_36x36_10002k.zip"),
+    # ]
+    #
+    # for i, (agent_path, checkpoint) in enumerate(agent_paths):
+    #     MODEL_PATH = os.path.join(AGENTS_FOLDER, agent_path, checkpoint)
+    #     print(f"testing: {agent_path}")
+    #     test(agent_path, ALGORITHM)

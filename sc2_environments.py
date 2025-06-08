@@ -1038,7 +1038,7 @@ class SC2DefeatZerglingsAndBanelingsEnv(SC2GymWrapper):
             ),
             game_steps_per_episode=0,
             step_mul=8,
-            realtime=False,
+            realtime=True,
             visualize=False
         )
 
