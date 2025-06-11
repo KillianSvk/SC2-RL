@@ -112,7 +112,7 @@ def test(algorithm):
 
         os.makedirs(TEST_RESULTS_FOLDER, exist_ok=True)
         # path = os.path.join(TEST_RESULTS_FOLDER, f"{agent_name}_test.csv")
-        path = os.path.join(TEST_RESULTS_FOLDER, f"test.csv")
+        path = os.path.join(TEST_RESULTS_FOLDER, f"test_{model_start_time}.csv")
         df.to_csv(path, index=False)
 
         print("results saved")
